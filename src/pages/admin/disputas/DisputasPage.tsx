@@ -1,0 +1,227 @@
+// src/pages/admin/disputas/DisputasPage.tsx
+//
+// Tela de Disputas (/admin/disputas). Lista o resultado de cada disputa já
+// registrada, com destaque visual para ganhos/perdas e link direto para a
+// ata no SIGA Pregão, quando informado.
+
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { StatusBadge, StatusTone } from '../../../components/StatusBadge';
+import { DisputaFormModal } from './DisputaFormModal';
+import { disputaService } from '../../../services/disputaService';
+import { licitacaoService } from '../../../services/licitacaoService';
+import { Disputa, DisputaFormData, ResultadoDisputa, RESULTADO_DISPUTA_LABEL } from '../../../types/disputa';
+import { Licitacao } from '../../../types/licitacao';
+import { formatarMoeda, formatarDataHora } from '../../../utils/prazoUtils';
+
+// Troque por `useAuth()` real — ver COMO_INTEGRAR.md.
+const usuarioAtual = 'Usuário atual';
+
+const RESULTADO_TONE: Record<ResultadoDisputa, StatusTone> = {
+  em_andamento: 'neutral',
+  ganho: 'success',
+  perdido: 'danger',
+};
+
+export function DisputasPage() {
+  const [disputas, setDisputas] = useState<Disputa[]>([]);
+  const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [filtroResultado, setFiltroResultado] = useState('');
+
+  const [modalAberto, setModalAberto] = useState(false);
+  const [disputaEmEdicao, setDisputaEmEdicao] = useState<Disputa | null>(null);
+  const [licitacaoSelecionada, setLicitacaoSelecionada] = useState<Licitacao | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    const [todasDisputas, resultadoLicitacoes] = await Promise.all([
+      disputaService.listarTodas(),
+      licitacaoService.listar({ pageSize: 1000 }),
+    ]);
+    setDisputas(todasDisputas);
+    setLicitacoes(resultadoLicitacoes.itens);
+    setCarregando(false);
+  }, []);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  const licitacaoPorId = useMemo(() => {
+    const mapa = new Map<string, Licitacao>();
+    licitacoes.forEach((l) => mapa.set(l.id, l));
+    return mapa;
+  }, [licitacoes]);
+
+  // Licitações que ainda não têm disputa registrada — candidatas a "nova disputa"
+  const licitacoesSemDisputa = useMemo(() => {
+    const idsComDisputa = new Set(disputas.map((d) => d.licitacaoId));
+    return licitacoes.filter((l) => !idsComDisputa.has(l.id) && l.status !== 'pendente');
+  }, [disputas, licitacoes]);
+
+  const disputasFiltradas = useMemo(
+    () => (filtroResultado ? disputas.filter((d) => d.resultado === filtroResultado) : disputas),
+    [disputas, filtroResultado]
+  );
+
+  function abrirNova(licitacao: Licitacao) {
+    setLicitacaoSelecionada(licitacao);
+    setDisputaEmEdicao(null);
+    setModalAberto(true);
+  }
+
+  function abrirEdicao(disputa: Disputa) {
+    const licitacao = licitacaoPorId.get(disputa.licitacaoId);
+    if (!licitacao) return;
+    setLicitacaoSelecionada(licitacao);
+    setDisputaEmEdicao(disputa);
+    setModalAberto(true);
+  }
+
+  async function salvar(dados: DisputaFormData) {
+    if (disputaEmEdicao) {
+      await disputaService.atualizar(disputaEmEdicao.id, dados, usuarioAtual);
+    } else {
+      await disputaService.criar(dados, usuarioAtual);
+    }
+    await carregar();
+  }
+
+  return (
+    <div className="min-h-screen bg-paper p-8">
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl text-ink">Disputas</h1>
+          <p className="font-body text-sm text-ink-soft">
+            Resultado das sessões de disputa realizadas no SIGA Pregão.
+          </p>
+        </div>
+        {licitacoesSemDisputa.length > 0 && (
+          <select
+            onChange={(e) => {
+              const licitacao = licitacoesSemDisputa.find((l) => l.id === e.target.value);
+              if (licitacao) abrirNova(licitacao);
+              e.target.value = '';
+            }}
+            defaultValue=""
+            className="rounded-md bg-forest px-4 py-2.5 font-body text-sm font-medium text-paper shadow-soft"
+          >
+            <option value="" disabled>
+              + Registrar disputa para...
+            </option>
+            {licitacoesSemDisputa.map((l) => (
+              <option key={l.id} value={l.id} className="text-ink">
+                {l.numeroEdital} — {l.orgao}
+              </option>
+            ))}
+          </select>
+        )}
+      </header>
+
+      <div className="mb-4 font-body text-sm">
+        <select
+          value={filtroResultado}
+          onChange={(e) => setFiltroResultado(e.target.value)}
+          className="rounded-md border border-charcoal-3/20 bg-white px-3 py-2 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20"
+        >
+          <option value="">Todos os resultados</option>
+          {Object.entries(RESULTADO_DISPUTA_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-charcoal-3/10 bg-white shadow-soft">
+        <table className="w-full font-body text-sm">
+          <thead className="bg-paper-2 text-left text-xs uppercase tracking-wide text-ink-soft">
+            <tr>
+              <th className="px-4 py-3">Licitação</th>
+              <th className="px-4 py-3">Sessão realizada</th>
+              <th className="px-4 py-3">Nossa oferta</th>
+              <th className="px-4 py-3">Valor vencedor</th>
+              <th className="px-4 py-3">Vencedor</th>
+              <th className="px-4 py-3">Resultado</th>
+              <th className="px-4 py-3 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-charcoal-3/10">
+            {carregando && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-ink-soft">
+                  Carregando disputas...
+                </td>
+              </tr>
+            )}
+            {!carregando && disputasFiltradas.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-ink-soft">
+                  Nenhuma disputa registrada ainda.
+                </td>
+              </tr>
+            )}
+            {!carregando &&
+              disputasFiltradas.map((disputa) => {
+                const licitacao = licitacaoPorId.get(disputa.licitacaoId);
+                return (
+                  <tr key={disputa.id} className="hover:bg-paper-2/60">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-ink">{licitacao?.numeroEdital ?? '—'}</p>
+                      <p className="text-xs text-ink-soft">{licitacao?.orgao}</p>
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">
+                      {disputa.dataSessaoRealizada ? formatarDataHora(disputa.dataSessaoRealizada) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">
+                      {disputa.valorNossaOfertaFinal ? formatarMoeda(disputa.valorNossaOfertaFinal) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">
+                      {disputa.valorVencedor ? formatarMoeda(disputa.valorVencedor) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">{disputa.nomeVencedor || '—'}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge
+                        label={RESULTADO_DISPUTA_LABEL[disputa.resultado]}
+                        tone={RESULTADO_TONE[disputa.resultado]}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {disputa.linkAtaSigaPregao && (
+                        <a
+                          href={disputa.linkAtaSigaPregao}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-3 text-forest-deep hover:underline"
+                        >
+                          Ver ata ↗
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => abrirEdicao(disputa)}
+                        className="text-forest-deep hover:underline"
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+
+      {licitacaoSelecionada && (
+        <DisputaFormModal
+          isOpen={modalAberto}
+          onClose={() => setModalAberto(false)}
+          onSave={salvar}
+          licitacaoId={licitacaoSelecionada.id}
+          numeroEditalReferencia={licitacaoSelecionada.numeroEdital}
+          disputaEmEdicao={disputaEmEdicao}
+        />
+      )}
+    </div>
+  );
+}
