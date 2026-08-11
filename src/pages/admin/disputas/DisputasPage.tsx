@@ -4,8 +4,8 @@
 // registrada, com destaque visual para ganhos/perdas e link direto para a
 // ata no SIGA Pregão, quando informado.
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { StatusBadge, StatusTone } from '../../../components/StatusBadge';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { StatusPill, StatusTone } from '../../../components/StatusPill';
 import { DisputaFormModal } from './DisputaFormModal';
 import { disputaService } from '../../../services/disputaService';
 import { licitacaoService } from '../../../services/licitacaoService';
@@ -111,7 +111,7 @@ export function DisputasPage() {
             </option>
             {licitacoesSemDisputa.map((l) => (
               <option key={l.id} value={l.id} className="text-ink">
-                {l.numeroEdital} — {l.orgao}
+                {l.numeroPregao} — {l.orgao}
               </option>
             ))}
           </select>
@@ -167,7 +167,7 @@ export function DisputasPage() {
                 return (
                   <tr key={disputa.id} className="hover:bg-paper-2/60">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-ink">{licitacao?.numeroEdital ?? '—'}</p>
+                      <p className="font-medium text-ink">{licitacao?.numeroPregao ?? '—'}</p>
                       <p className="text-xs text-ink-soft">{licitacao?.orgao}</p>
                     </td>
                     <td className="px-4 py-3 text-ink-soft">
@@ -181,7 +181,7 @@ export function DisputasPage() {
                     </td>
                     <td className="px-4 py-3 text-ink-soft">{disputa.nomeVencedor || '—'}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge
+                      <StatusPill
                         label={RESULTADO_DISPUTA_LABEL[disputa.resultado]}
                         tone={RESULTADO_TONE[disputa.resultado]}
                       />
@@ -218,7 +218,7 @@ export function DisputasPage() {
           onClose={() => setModalAberto(false)}
           onSave={salvar}
           licitacaoId={licitacaoSelecionada.id}
-          numeroEditalReferencia={licitacaoSelecionada.numeroEdital}
+          numeroPregaoReferencia={licitacaoSelecionada.numeroPregao}
           disputaEmEdicao={disputaEmEdicao}
         />
       )}

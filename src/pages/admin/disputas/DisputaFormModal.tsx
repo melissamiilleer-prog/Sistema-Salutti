@@ -1,8 +1,19 @@
 // src/pages/admin/disputas/DisputaFormModal.tsx
+//
+// Registra o resultado de uma sessão de disputa já realizada no SIGA
+// Pregão. Reescrito para usar os componentes genéricos REAIS do projeto
+// (Modal, TextField, SelectField, TextAreaField, Button) — a versão
+// anterior usava um conjunto de componentes duplicado (FormFields.tsx)
+// com uma API incompatível (Modal isOpen/widthClass em vez de
+// open/size; campos com onChange(value) em vez de onChange(event)),
+// o que quebrava a compilação.
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/Modal';
-import { InputField, SelectField, TextAreaField } from '../../../components/FormFields';
+import { TextField } from '../../../components/TextField';
+import { SelectField } from '../../../components/SelectField';
+import { TextAreaField } from '../../../components/TextAreaField';
+import { Button } from '../../../components/Button';
 import {
   Disputa,
   DisputaFormData,
@@ -29,7 +40,7 @@ interface DisputaFormModalProps {
   onClose: () => void;
   onSave: (dados: DisputaFormData) => Promise<void>;
   licitacaoId: string;
-  numeroEditalReferencia: string;
+  numeroPregaoReferencia: string;
   disputaEmEdicao?: Disputa | null;
 }
 
@@ -38,7 +49,7 @@ export function DisputaFormModal({
   onClose,
   onSave,
   licitacaoId,
-  numeroEditalReferencia,
+  numeroPregaoReferencia,
   disputaEmEdicao,
 }: DisputaFormModalProps) {
   const [form, setForm] = useState<DisputaFormData>(criarFormularioVazio(licitacaoId));
@@ -67,65 +78,83 @@ export function DisputaFormModal({
 
   return (
     <Modal
-      isOpen={isOpen}
+      open={isOpen}
       onClose={onClose}
-      title={`Disputa — ${numeroEditalReferencia}`}
-      widthClass="max-w-2xl"
+      title={`Disputa — ${numeroPregaoReferencia}`}
+      size="lg"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSalvar} disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar resultado'}
+          </Button>
+        </>
+      }
     >
       <div className="space-y-5">
-        <div className="rounded-lg border border-charcoal-3/15 bg-paper-2 px-4 py-3 font-body text-xs text-ink-soft">
+        <div className="rounded-lg border border-ink-soft/15 bg-forest-mist/30 px-4 py-3 font-body text-xs text-ink-soft">
           A sessão de disputa acontece no <strong className="text-ink">SIGA Pregão</strong>. Use este
           formulário só para registrar o resultado final aqui no sistema, depois que a sessão ocorrer.
         </div>
 
         <SelectField
-          label="Resultado"
+          label="Resultado *"
           required
           value={form.resultado}
-          onChange={(v) => atualizarCampo('resultado', v as ResultadoDisputa)}
+          onChange={(e) => atualizarCampo('resultado', e.target.value as ResultadoDisputa)}
           options={Object.entries(RESULTADO_DISPUTA_LABEL).map(([value, label]) => ({ value, label }))}
-          hint={resultadoMudaStatus ? 'Isso vai atualizar automaticamente o status da licitação.' : undefined}
         />
+        {resultadoMudaStatus && (
+          <p className="-mt-3 font-body text-xs text-ink-soft">
+            Isso vai atualizar automaticamente o status da licitação.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
-          <InputField
+          <TextField
             label="Data/hora da sessão realizada"
             type="datetime-local"
             value={form.dataSessaoRealizada?.slice(0, 16) ?? ''}
-            onChange={(v) => atualizarCampo('dataSessaoRealizada', v ? new Date(v).toISOString() : undefined)}
+            onChange={(e) =>
+              atualizarCampo('dataSessaoRealizada', e.target.value ? new Date(e.target.value).toISOString() : undefined)
+            }
           />
-          <InputField
+          <TextField
             label="Posição final"
             type="number"
             value={form.posicaoFinal ?? ''}
-            onChange={(v) => atualizarCampo('posicaoFinal', v ? Number(v) : undefined)}
+            onChange={(e) => atualizarCampo('posicaoFinal', e.target.value ? Number(e.target.value) : undefined)}
             placeholder="Ex: 1"
           />
-          <InputField
+          <TextField
             label="Nossa oferta final (R$)"
             type="number"
             value={form.valorNossaOfertaFinal ?? ''}
-            onChange={(v) => atualizarCampo('valorNossaOfertaFinal', v ? Number(v) : undefined)}
+            onChange={(e) =>
+              atualizarCampo('valorNossaOfertaFinal', e.target.value ? Number(e.target.value) : undefined)
+            }
           />
-          <InputField
+          <TextField
             label="Valor vencedor (R$)"
             type="number"
             value={form.valorVencedor ?? ''}
-            onChange={(v) => atualizarCampo('valorVencedor', v ? Number(v) : undefined)}
+            onChange={(e) => atualizarCampo('valorVencedor', e.target.value ? Number(e.target.value) : undefined)}
           />
           <div className="col-span-2">
-            <InputField
+            <TextField
               label="Vencedor"
               value={form.nomeVencedor ?? ''}
-              onChange={(v) => atualizarCampo('nomeVencedor', v)}
+              onChange={(e) => atualizarCampo('nomeVencedor', e.target.value)}
               placeholder='"Salutti" se ganhamos, ou nome do concorrente'
             />
           </div>
           <div className="col-span-2">
-            <InputField
+            <TextField
               label="Link da ata no SIGA Pregão"
               value={form.linkAtaSigaPregao ?? ''}
-              onChange={(v) => atualizarCampo('linkAtaSigaPregao', v)}
+              onChange={(e) => atualizarCampo('linkAtaSigaPregao', e.target.value)}
               placeholder="https://app.sigapregao.com.br/ata/..."
             />
           </div>
@@ -134,28 +163,10 @@ export function DisputaFormModal({
         <TextAreaField
           label="Observações"
           value={form.observacoes}
-          onChange={(v) => atualizarCampo('observacoes', v)}
+          onChange={(e) => atualizarCampo('observacoes', e.target.value)}
           rows={3}
           placeholder="Ex: motivo da perda, estratégia usada, aprendizados para a próxima disputa"
         />
-      </div>
-
-      <div className="mt-6 flex justify-end gap-3 border-t border-charcoal-3/10 pt-4 font-body text-sm">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-charcoal-3/20 px-4 py-2 text-ink hover:bg-paper-2"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSalvar}
-          disabled={salvando}
-          className="rounded-md bg-forest px-4 py-2 font-medium text-paper hover:bg-forest-deep disabled:opacity-60"
-        >
-          {salvando ? 'Salvando...' : 'Salvar resultado'}
-        </button>
       </div>
     </Modal>
   );

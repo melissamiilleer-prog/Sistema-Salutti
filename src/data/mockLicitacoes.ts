@@ -2,63 +2,173 @@
 //
 // "Banco de dados" mockado das licitações, no mesmo espírito de
 // `mockUsers.ts` / `mockClientes.ts`. Consumido só por `licitacaoService.ts`.
+// Estrutura alinhada à Especificação Funcional v2.1 (5 abas + decisão do cliente).
 
 import { Licitacao } from '../types/licitacao';
-
-const agora = new Date().toISOString();
 
 export const mockLicitacoes: Licitacao[] = [
   {
     id: 'lic-001',
-    numeroEdital: 'PE 045/2026',
-    orgao: 'Prefeitura Municipal de Osasco',
-    modalidade: 'pregao_eletronico',
+    dataLicitacao: '2026-08-10T14:00:00.000Z',
+    portal: 'ComprasNet',
     objeto: 'Contratação de serviços de limpeza e conservação predial',
-    portalOrigem: 'ComprasNet',
+    numeroPregao: 'PE 045/2026',
+    orgao: 'Prefeitura Municipal de Osasco',
+    estado: 'SP',
+    municipio: 'Osasco',
+    modalidade: 'pregao_eletronico',
+    formaDisputa: 'Aberto',
+    modoDisputa: 'Eletrônico',
+    participacao: 'Ampla',
+    capag: true,
+    restricoesMeEpp: false,
     linkEdital: 'https://www.gov.br/compras/pt-br/exemplo-pe-045-2026',
-    valorEstimado: 480000,
-    dataPublicacao: '2026-07-20T00:00:00.000Z',
-    dataAberturaSessao: '2026-08-10T14:00:00.000Z',
+    valorTotalLicitacao: 480000,
+
     clienteId: 'cli-004',
     status: 'em_analise',
-    analistaResponsavel: 'Ana',
-    checklist: [
-      { id: 'chk-1', etapa: 'Edital baixado', concluido: true, concluidoEm: '2026-07-21T10:00:00.000Z' },
-      { id: 'chk-2', etapa: 'Resumo do edital feito', concluido: true, concluidoEm: '2026-07-22T09:30:00.000Z' },
-      { id: 'chk-3', etapa: 'Proposta elaborada', concluido: false },
-      { id: 'chk-4', etapa: 'Proposta enviada ao cliente', concluido: false },
-      { id: 'chk-5', etapa: 'Documentos de habilitação anexados', concluido: false },
-      { id: 'chk-6', etapa: 'Disputa registrada no SIGA Pregão', concluido: false },
+
+    habilitacao: {
+      exigeAtestado: true,
+      exigeQuantidadeMinima: false,
+      qualificacaoTecnica: 'Atestado de capacidade técnica em serviços de limpeza predial de porte similar.',
+      qualificacaoEconomicoFinanceira: 'Capital social mínimo de 10% do valor estimado.',
+      regularidadeFiscal: 'Certidões federal, estadual, municipal, FGTS e trabalhista em dia.',
+      exigeAmostras: false,
+    },
+
+    condicoesComerciais: {
+      intervaloLances: 'R$ 500,00 entre lances',
+      formaPagamento: 'credito_conta',
+      recebimentoBanco: 'Banco do Brasil',
+      prazoPagamentoDias: 30,
+      possuiGarantias: true,
+      garantiasDetalhe: 'Garantia de execução contratual de 5% do valor do contrato.',
+      prazoEntregaDias: 15,
+      localEntrega: 'Almoxarifado central da Prefeitura de Osasco.',
+      validadePropostaDias: 60,
+    },
+
+    pontosAtencao:
+      'Cliente pediu para priorizar, é a segunda vez que participa desse órgão. Verificar exigência de atestado antes de confirmar participação.',
+
+    grupos: [{ id: 'grp-1', nome: 'Grupo 1 — Materiais de limpeza' }],
+    itens: [
+      {
+        id: 'item-1',
+        grupoId: 'grp-1',
+        numero: '1',
+        descricao: 'Álcool 70% - galão 5L',
+        unidadeMedida: 'galão',
+        quantidade: 200,
+        precoReferencia: 45,
+        exclusivoMeEpp: false,
+      },
+      {
+        id: 'item-2',
+        grupoId: 'grp-1',
+        numero: '2',
+        descricao: 'Detergente neutro - galão 5L',
+        unidadeMedida: 'galão',
+        quantidade: 150,
+        precoReferencia: 32,
+        exclusivoMeEpp: false,
+      },
+      {
+        id: 'item-3',
+        numero: '3',
+        descricao: 'Serviço de mão de obra terceirizada (posto mensal)',
+        unidadeMedida: 'posto',
+        quantidade: 12,
+        precoReferencia: 4200,
+        exclusivoMeEpp: false,
+      },
     ],
+
+    decisaoCliente: 'participar',
+    decisaoClienteEm: '2026-07-21T09:00:00.000Z',
+    cobrarFrete: false,
+    statusProposta: 'rascunho',
+
     observacoes: 'Cliente pediu para priorizar, é a segunda vez que participa desse órgão.',
     historico: [
       { id: 'h-1', data: '2026-07-20T11:00:00.000Z', usuario: 'Márcio', acao: 'Licitação cadastrada no sistema' },
-      { id: 'h-2', data: '2026-07-22T09:30:00.000Z', usuario: 'Ana (analista)', acao: 'Resumo do edital concluído' },
+      { id: 'h-2', data: '2026-07-22T09:30:00.000Z', usuario: 'Ana (analista)', acao: 'Habilitação e condições comerciais preenchidas' },
     ],
     criadoEm: '2026-07-20T11:00:00.000Z',
     atualizadoEm: '2026-07-22T09:30:00.000Z',
   },
   {
     id: 'lic-002',
-    numeroEdital: 'CC 012/2026',
-    orgao: 'Governo do Estado de São Paulo',
-    modalidade: 'concorrencia',
+    dataLicitacao: '2026-08-04T09:00:00.000Z',
+    portal: 'BEC/SP',
     objeto: 'Fornecimento de equipamentos de segurança patrimonial',
-    portalOrigem: 'BEC/SP',
-    valorEstimado: 1250000,
-    dataPublicacao: '2026-07-10T00:00:00.000Z',
-    dataAberturaSessao: '2026-08-04T09:00:00.000Z',
+    numeroPregao: 'CC 012/2026',
+    orgao: 'Governo do Estado de São Paulo',
+    estado: 'SP',
+    municipio: 'São Paulo',
+    modalidade: 'concorrencia',
+    formaDisputa: 'Aberto-Fechado',
+    modoDisputa: 'Eletrônico',
+    participacao: 'Ampla',
+    capag: false,
+    restricoesMeEpp: false,
+    valorTotalLicitacao: 1250000,
+
     clienteId: 'cli-005',
     status: 'enviado',
-    analistaResponsavel: 'Bruno',
-    checklist: [
-      { id: 'chk-1', etapa: 'Edital baixado', concluido: true, concluidoEm: '2026-07-11T08:00:00.000Z' },
-      { id: 'chk-2', etapa: 'Resumo do edital feito', concluido: true, concluidoEm: '2026-07-11T15:00:00.000Z' },
-      { id: 'chk-3', etapa: 'Proposta elaborada', concluido: true, concluidoEm: '2026-07-18T17:00:00.000Z' },
-      { id: 'chk-4', etapa: 'Proposta enviada ao cliente', concluido: true, concluidoEm: '2026-07-19T10:00:00.000Z' },
-      { id: 'chk-5', etapa: 'Documentos de habilitação anexados', concluido: true, concluidoEm: '2026-07-25T13:00:00.000Z' },
-      { id: 'chk-6', etapa: 'Disputa registrada no SIGA Pregão', concluido: false },
+
+    habilitacao: {
+      exigeAtestado: true,
+      exigeQuantidadeMinima: true,
+      qualificacaoTecnica: 'Atestado com fornecimento mínimo de 500 unidades de equipamentos similares.',
+      qualificacaoEconomicoFinanceira: 'Índices contábeis conforme edital, capital social mínimo de R$ 100.000,00.',
+      regularidadeFiscal: 'Certidões federal, estadual, municipal, FGTS e trabalhista em dia.',
+      exigeAmostras: true,
+      prazoEntregaAmostraDias: 5,
+    },
+
+    condicoesComerciais: {
+      intervaloLances: 'R$ 1.000,00 entre lances',
+      formaPagamento: 'boleto',
+      recebimentoBanco: 'Banco do Brasil',
+      prazoPagamentoDias: 45,
+      possuiGarantias: false,
+      prazoEntregaDias: 30,
+      localEntrega: 'Depósito central da Secretaria de Segurança Pública.',
+      validadePropostaDias: 90,
+    },
+
+    pontosAtencao: 'Exigência de amostra em 5 dias — avaliar logística antes de confirmar.',
+
+    grupos: [],
+    itens: [
+      {
+        id: 'item-1',
+        numero: '1',
+        descricao: 'Câmera de monitoramento externa 4K',
+        unidadeMedida: 'unidade',
+        quantidade: 300,
+        precoReferencia: 1800,
+        exclusivoMeEpp: false,
+      },
+      {
+        id: 'item-2',
+        numero: '2',
+        descricao: 'Central de monitoramento digital',
+        unidadeMedida: 'unidade',
+        quantidade: 10,
+        precoReferencia: 45000,
+        exclusivoMeEpp: false,
+      },
     ],
+
+    decisaoCliente: 'participar',
+    decisaoClienteEm: '2026-07-10T14:00:00.000Z',
+    cobrarFrete: true,
+    percentualFrete: 3,
+    statusProposta: 'enviada',
+
     observacoes: '',
     historico: [
       { id: 'h-1', data: '2026-07-10T12:00:00.000Z', usuario: 'Márcio', acao: 'Licitação cadastrada no sistema' },
@@ -69,25 +179,64 @@ export const mockLicitacoes: Licitacao[] = [
   },
   {
     id: 'lic-003',
-    numeroEdital: 'PE 009/2026',
-    orgao: 'Prefeitura Municipal de Barueri',
-    modalidade: 'pregao_eletronico',
+    dataLicitacao: '2026-07-05T10:00:00.000Z',
+    portal: 'Licitações-e',
     objeto: 'Aquisição de gêneros alimentícios para merenda escolar',
-    portalOrigem: 'Licitações-e',
-    valorEstimado: 320000,
-    dataPublicacao: '2026-06-15T00:00:00.000Z',
-    dataAberturaSessao: '2026-07-05T10:00:00.000Z',
+    numeroPregao: 'PE 009/2026',
+    orgao: 'Prefeitura Municipal de Barueri',
+    estado: 'SP',
+    municipio: 'Barueri',
+    modalidade: 'pregao_eletronico',
+    formaDisputa: 'Aberto',
+    modoDisputa: 'Eletrônico',
+    participacao: 'Exclusiva ME/EPP',
+    capag: true,
+    restricoesMeEpp: true,
+    valorTotalLicitacao: 320000,
+
     clienteId: 'cli-003',
     status: 'perdido',
-    analistaResponsavel: 'Ana',
-    checklist: [
-      { id: 'chk-1', etapa: 'Edital baixado', concluido: true, concluidoEm: '2026-06-16T08:00:00.000Z' },
-      { id: 'chk-2', etapa: 'Resumo do edital feito', concluido: true, concluidoEm: '2026-06-16T14:00:00.000Z' },
-      { id: 'chk-3', etapa: 'Proposta elaborada', concluido: true, concluidoEm: '2026-06-20T16:00:00.000Z' },
-      { id: 'chk-4', etapa: 'Proposta enviada ao cliente', concluido: true, concluidoEm: '2026-06-21T09:00:00.000Z' },
-      { id: 'chk-5', etapa: 'Documentos de habilitação anexados', concluido: true, concluidoEm: '2026-06-28T11:00:00.000Z' },
-      { id: 'chk-6', etapa: 'Disputa registrada no SIGA Pregão', concluido: true, concluidoEm: '2026-07-05T10:30:00.000Z' },
+
+    habilitacao: {
+      exigeAtestado: false,
+      exigeQuantidadeMinima: false,
+      qualificacaoTecnica: '',
+      qualificacaoEconomicoFinanceira: '',
+      regularidadeFiscal: 'Certidões federal, estadual e municipal em dia.',
+      exigeAmostras: false,
+    },
+
+    condicoesComerciais: {
+      intervaloLances: 'R$ 200,00 entre lances',
+      formaPagamento: 'pix',
+      recebimentoBanco: 'Banco do Brasil',
+      prazoPagamentoDias: 15,
+      possuiGarantias: false,
+      prazoEntregaDias: 7,
+      localEntrega: 'Almoxarifado da Secretaria de Educação.',
+      validadePropostaDias: 60,
+    },
+
+    pontosAtencao: 'Concorrente ofertou valor abaixo do estimado. Avaliar margem para próximas disputas desse órgão.',
+
+    grupos: [],
+    itens: [
+      {
+        id: 'item-1',
+        numero: '1',
+        descricao: 'Arroz tipo 1 - saco 5kg',
+        unidadeMedida: 'saco',
+        quantidade: 2000,
+        precoReferencia: 22,
+        exclusivoMeEpp: true,
+      },
     ],
+
+    decisaoCliente: 'participar',
+    decisaoClienteEm: '2026-06-15T10:00:00.000Z',
+    cobrarFrete: false,
+    statusProposta: 'enviada',
+
     observacoes: 'Concorrente ofertou valor abaixo do estimado. Avaliar margem para próximas disputas desse órgão.',
     historico: [
       { id: 'h-1', data: '2026-06-15T09:00:00.000Z', usuario: 'Márcio', acao: 'Licitação cadastrada no sistema' },
@@ -98,25 +247,50 @@ export const mockLicitacoes: Licitacao[] = [
   },
   {
     id: 'lic-004',
-    numeroEdital: 'TP 003/2026',
-    orgao: 'Câmara Municipal de Cotia',
-    modalidade: 'tomada_de_precos',
+    dataLicitacao: '2026-08-06T13:30:00.000Z',
+    portal: 'Portal de Compras do Município',
     objeto: 'Reforma e manutenção predial',
-    portalOrigem: 'Portal de Compras do Município',
-    valorEstimado: 210000,
-    dataPublicacao: '2026-07-27T00:00:00.000Z',
-    dataAberturaSessao: '2026-08-06T13:30:00.000Z',
+    numeroPregao: 'TP 003/2026',
+    orgao: 'Câmara Municipal de Cotia',
+    estado: 'SP',
+    municipio: 'Cotia',
+    modalidade: 'tomada_de_precos',
+    formaDisputa: 'Fechado',
+    modoDisputa: 'Presencial',
+    participacao: 'Ampla',
+    capag: false,
+    restricoesMeEpp: false,
+    valorTotalLicitacao: undefined, // orçamento sigiloso
+
     clienteId: 'cli-001',
     status: 'pendente',
-    analistaResponsavel: 'Bruno',
-    checklist: [
-      { id: 'chk-1', etapa: 'Edital baixado', concluido: true, concluidoEm: '2026-07-28T08:00:00.000Z' },
-      { id: 'chk-2', etapa: 'Resumo do edital feito', concluido: false },
-      { id: 'chk-3', etapa: 'Proposta elaborada', concluido: false },
-      { id: 'chk-4', etapa: 'Proposta enviada ao cliente', concluido: false },
-      { id: 'chk-5', etapa: 'Documentos de habilitação anexados', concluido: false },
-      { id: 'chk-6', etapa: 'Disputa registrada no SIGA Pregão', concluido: false },
-    ],
+
+    habilitacao: {
+      exigeAtestado: true,
+      exigeQuantidadeMinima: false,
+      qualificacaoTecnica: '',
+      qualificacaoEconomicoFinanceira: '',
+      regularidadeFiscal: '',
+      exigeAmostras: false,
+    },
+
+    condicoesComerciais: {
+      intervaloLances: '',
+      formaPagamento: 'outros',
+      recebimentoBanco: '',
+      possuiGarantias: false,
+      localEntrega: '',
+    },
+
+    pontosAtencao: '',
+
+    grupos: [],
+    itens: [],
+
+    decisaoCliente: 'pendente',
+    cobrarFrete: false,
+    statusProposta: 'rascunho',
+
     observacoes: '',
     historico: [
       { id: 'h-1', data: '2026-07-28T08:00:00.000Z', usuario: 'Márcio', acao: 'Licitação cadastrada no sistema' },
@@ -125,5 +299,3 @@ export const mockLicitacoes: Licitacao[] = [
     atualizadoEm: '2026-07-28T08:00:00.000Z',
   },
 ];
-
-export { agora as dataReferenciaMock };

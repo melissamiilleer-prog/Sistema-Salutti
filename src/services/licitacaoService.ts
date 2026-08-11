@@ -10,7 +10,7 @@
 // Nenhuma tela deve importar `mockLicitacoes.ts` diretamente — sempre
 // passe por este service, para a troca futura ser transparente.
 
-import { Licitacao, LicitacaoFormData, ChecklistItem, CHECKLIST_PADRAO } from '../types/licitacao';
+import { Licitacao, LicitacaoFormData } from '../types/licitacao';
 import { mockLicitacoes } from '../data/mockLicitacoes';
 
 const STORAGE_KEY = 'salutti:licitacoes';
@@ -41,9 +41,8 @@ function simularLatencia<T>(valor: T, ms = 250): Promise<T> {
 }
 
 export interface FiltroLicitacoes {
-  busca?: string; // número do edital, órgão ou objeto
+  busca?: string; // número do pregão, órgão ou objeto
   status?: string;
-  analista?: string; // filtra pela "carteira própria" do analista (Cap. 4 do PRD)
   page?: number;
   pageSize?: number;
 }
@@ -60,14 +59,14 @@ export const licitacaoService = {
   //   supabase.from('licitacoes').select('*, cliente:clientes(*)')
   //   com .ilike / .eq para busca e filtro, e .range() para paginação.
   async listar(filtro: FiltroLicitacoes = {}): Promise<ResultadoPaginado<Licitacao>> {
-    const { busca = '', status = '', analista = '', page = 1, pageSize = 10 } = filtro;
+    const { busca = '', status = '', page = 1, pageSize = 10 } = filtro;
     let itens = lerStorage();
 
     if (busca.trim()) {
       const termo = busca.trim().toLowerCase();
       itens = itens.filter(
         (l) =>
-          l.numeroEdital.toLowerCase().includes(termo) ||
+          l.numeroPregao.toLowerCase().includes(termo) ||
           l.orgao.toLowerCase().includes(termo) ||
           l.objeto.toLowerCase().includes(termo)
       );
@@ -77,12 +76,8 @@ export const licitacaoService = {
       itens = itens.filter((l) => l.status === status);
     }
 
-    if (analista) {
-      itens = itens.filter((l) => l.analistaResponsavel === analista);
-    }
-
     itens = [...itens].sort(
-      (a, b) => new Date(a.dataAberturaSessao).getTime() - new Date(b.dataAberturaSessao).getTime()
+      (a, b) => new Date(a.dataLicitacao).getTime() - new Date(b.dataLicitacao).getTime()
     );
 
     const total = itens.length;
@@ -92,20 +87,25 @@ export const licitacaoService = {
     return simularLatencia({ itens: pagina, total, page, pageSize });
   },
 
-  // Usado pela Mesa de Trabalho: todas as licitações ainda em andamento
-  // (exclui 'ganho'/'perdido'), sem paginação, opcionalmente filtradas por
-  // analista. Ordenadas pela sessão mais próxima primeiro.
+  // Usado pelo Portal do Cliente: todas as licitações de um cliente
+  // específico, sem paginação, mais recentes primeiro.
+  // SUPABASE: trocar por supabase.from('licitacoes').select('*').eq('cliente_id', clienteId)
+  async listarPorCliente(clienteId: string): Promise<Licitacao[]> {
+    const itens = lerStorage().filter((l) => l.clienteId === clienteId);
+    return simularLatencia(
+      [...itens].sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+    );
+  },
+
+  // Todas as licitações ainda em andamento (exclui 'ganho'/'perdido'), sem
+  // paginação, ordenadas pela sessão mais próxima primeiro.
   // SUPABASE: trocar por
   //   supabase.from('licitacoes').select('*').not('status', 'in', '(ganho,perdido)')
-  async listarAtivas(analista?: string): Promise<Licitacao[]> {
-    let itens = lerStorage().filter((l) => l.status !== 'ganho' && l.status !== 'perdido');
-    if (analista) {
-      itens = itens.filter((l) => l.analistaResponsavel === analista);
-    }
-    itens = [...itens].sort(
-      (a, b) => new Date(a.dataAberturaSessao).getTime() - new Date(b.dataAberturaSessao).getTime()
+  async listarAtivas(): Promise<Licitacao[]> {
+    const itens = lerStorage().filter((l) => l.status !== 'ganho' && l.status !== 'perdido');
+    return simularLatencia(
+      [...itens].sort((a, b) => new Date(a.dataLicitacao).getTime() - new Date(b.dataLicitacao).getTime())
     );
-    return simularLatencia(itens);
   },
 
   // SUPABASE: trocar por supabase.from('licitacoes').select('*').eq('id', id).single()
@@ -119,15 +119,9 @@ export const licitacaoService = {
     const itens = lerStorage();
     const agora = new Date().toISOString();
 
-    const checklist: ChecklistItem[] =
-      dados.checklist?.length
-        ? dados.checklist
-        : CHECKLIST_PADRAO.map((c, i) => ({ ...c, id: `chk-${i + 1}` }));
-
     const nova: Licitacao = {
       ...dados,
       id: gerarId(),
-      checklist,
       historico: [
         { id: `h-${Date.now()}`, data: agora, usuario, acao: 'Licitação cadastrada no sistema' },
       ],
@@ -168,19 +162,44 @@ export const licitacaoService = {
     return this.atualizar(id, { status }, usuario);
   },
 
-  // SUPABASE: trocar por supabase.from('licitacoes').update({ checklist }).eq('id', id)
-  async atualizarChecklistItem(id: string, checklistItemId: string, concluido: boolean, usuario: string): Promise<Licitacao> {
-    const licitacao = await this.buscarPorId(id);
-    if (!licitacao) throw new Error('Licitação não encontrada');
-
+  // SUPABASE: trocar por supabase.from('licitacoes').update({ decisao_cliente, motivo_recusa_cliente, cobrar_frete, percentual_frete }).eq('id', id)
+  // Chamado pelo Portal do Cliente (spec 2.3 / 6.2 — botões "Quero Participar" / "Não vou participar").
+  async registrarDecisaoCliente(
+    id: string,
+    decisao: 'participar' | 'recusar',
+    nomeCliente: string,
+    opcoes: { motivoRecusa?: string; cobrarFrete?: boolean; percentualFrete?: number } = {}
+  ): Promise<Licitacao> {
     const agora = new Date().toISOString();
-    const checklist = licitacao.checklist.map((item) =>
-      item.id === checklistItemId
-        ? { ...item, concluido, concluidoEm: concluido ? agora : undefined }
-        : item
+    const acao =
+      decisao === 'participar'
+        ? 'Cliente confirmou participação nesta licitação'
+        : `Cliente recusou participar${opcoes.motivoRecusa ? ` — motivo: ${opcoes.motivoRecusa}` : ''}`;
+
+    const atualizada = await this.atualizar(
+      id,
+      {
+        decisaoCliente: decisao,
+        decisaoClienteEm: agora,
+        motivoRecusaCliente: decisao === 'recusar' ? opcoes.motivoRecusa : undefined,
+        cobrarFrete: opcoes.cobrarFrete ?? false,
+        percentualFrete: opcoes.cobrarFrete ? opcoes.percentualFrete : undefined,
+      },
+      nomeCliente
     );
 
-    return this.atualizar(id, { checklist }, usuario);
+    // sobrescreve a última entrada genérica do histórico ("Dados da licitação
+    // atualizados") com uma mensagem mais clara para essa ação específica
+    const itens = lerStorage();
+    const index = itens.findIndex((l) => l.id === id);
+    if (index !== -1) {
+      const historico = [...itens[index].historico];
+      historico[historico.length - 1] = { ...historico[historico.length - 1], acao };
+      itens[index] = { ...itens[index], historico };
+      salvarStorage(itens);
+      return itens[index];
+    }
+    return atualizada;
   },
 
   // SUPABASE: trocar por supabase.from('licitacoes').delete().eq('id', id)

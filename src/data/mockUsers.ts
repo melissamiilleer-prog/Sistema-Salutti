@@ -29,5 +29,8 @@ export const MOCK_USERS: MockCredential[] = [
     email: 'cliente@empresa.com',
     password: '123456',
     role: 'cliente',
+    // 'cli-001' = Horizonte Engenharia, em mockClientesResumo.ts — troque
+    // aqui se quiser testar o portal logado como outro cliente.
+    clienteId: 'cli-001',
   },
 ]

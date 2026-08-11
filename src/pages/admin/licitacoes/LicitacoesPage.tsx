@@ -3,24 +3,21 @@
 // Tela principal do módulo de Licitações (/admin/licitacoes), no mesmo
 // padrão de ClientesPage / FuncionariosPage: listagem com busca, filtro por
 // status, paginação, e modal de formulário para criar/editar.
-//
-// Depende de `useAuth()` (de `AuthContext`, já existente no projeto) só
-// para saber o nome do usuário logado e registrar no histórico.
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Pagination } from '../../../components/Pagination';
-import { StatusBadge, StatusTone } from '../../../components/StatusBadge';
+import { StatusPill, StatusTone } from '../../../components/StatusPill';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
+import { Button } from '../../../components/Button';
 import { LicitacaoFormModal } from './LicitacaoFormModal';
-import {
-  licitacaoService,
-} from '../../../services/licitacaoService';
+import { licitacaoService } from '../../../services/licitacaoService';
 import {
   Licitacao,
   LicitacaoFormData,
   StatusLicitacao,
   STATUS_LICITACAO_LABEL,
   MODALIDADE_LICITACAO_LABEL,
+  DECISAO_CLIENTE_LABEL,
 } from '../../../types/licitacao';
 import { mockClientesResumo } from '../../../data/mockClientesResumo';
 import { formatarDataHora, formatarMoeda, classificarUrgenciaPrazo } from '../../../utils/prazoUtils';
@@ -51,6 +48,7 @@ export function LicitacoesPage() {
   const [modalAberto, setModalAberto] = useState(false);
   const [licitacaoEmEdicao, setLicitacaoEmEdicao] = useState<Licitacao | null>(null);
   const [licitacaoParaExcluir, setLicitacaoParaExcluir] = useState<Licitacao | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -90,9 +88,14 @@ export function LicitacoesPage() {
 
   async function confirmarExclusao() {
     if (!licitacaoParaExcluir) return;
-    await licitacaoService.excluir(licitacaoParaExcluir.id);
-    setLicitacaoParaExcluir(null);
-    await carregar();
+    setExcluindo(true);
+    try {
+      await licitacaoService.excluir(licitacaoParaExcluir.id);
+      setLicitacaoParaExcluir(null);
+      await carregar();
+    } finally {
+      setExcluindo(false);
+    }
   }
 
   function nomeCliente(clienteId: string): string {
@@ -108,13 +111,7 @@ export function LicitacoesPage() {
             Cadastro e acompanhamento de todas as licitações em andamento.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={abrirNova}
-          className="rounded-md bg-forest px-4 py-2.5 font-body text-sm font-medium text-paper shadow-soft hover:bg-forest-deep"
-        >
-          + Nova licitação
-        </button>
+        <Button onClick={abrirNova}>+ Nova licitação</Button>
       </header>
 
       <div className="mb-4 flex gap-3 font-body text-sm">
@@ -124,7 +121,7 @@ export function LicitacoesPage() {
             setPage(1);
             setBusca(e.target.value);
           }}
-          placeholder="Buscar por número do edital, órgão ou objeto..."
+          placeholder="Buscar por número do pregão, órgão ou objeto..."
           className="flex-1 rounded-md border border-charcoal-3/20 bg-white px-3 py-2 focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20"
         />
         <select
@@ -148,20 +145,21 @@ export function LicitacoesPage() {
         <table className="w-full font-body text-sm">
           <thead className="bg-paper-2 text-left text-xs uppercase tracking-wide text-ink-soft">
             <tr>
-              <th className="px-4 py-3">Edital</th>
+              <th className="px-4 py-3">Pregão</th>
               <th className="px-4 py-3">Órgão</th>
               <th className="px-4 py-3">Modalidade</th>
               <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Sessão</th>
-              <th className="px-4 py-3">Valor estimado</th>
+              <th className="px-4 py-3">Data da licitação</th>
+              <th className="px-4 py-3">Valor</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Decisão do cliente</th>
               <th className="px-4 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-charcoal-3/10">
             {carregando && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
                   Carregando licitações...
                 </td>
               </tr>
@@ -169,7 +167,7 @@ export function LicitacoesPage() {
 
             {!carregando && itens.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
                   Nenhuma licitação encontrada.
                 </td>
               </tr>
@@ -177,15 +175,17 @@ export function LicitacoesPage() {
 
             {!carregando &&
               itens.map((licitacao) => {
-                const urgencia = classificarUrgenciaPrazo(licitacao.dataAberturaSessao);
+                const dataReferencia = licitacao.dataEfetivaLicitacao || licitacao.dataLicitacao;
+                const urgencia = classificarUrgenciaPrazo(dataReferencia);
+
                 return (
                   <tr key={licitacao.id} className="hover:bg-paper-2/60">
-                    <td className="px-4 py-3 font-medium text-ink">{licitacao.numeroEdital}</td>
+                    <td className="px-4 py-3 font-medium text-ink">{licitacao.numeroPregao}</td>
                     <td className="px-4 py-3 text-ink-soft">{licitacao.orgao}</td>
                     <td className="px-4 py-3 text-ink-soft">{MODALIDADE_LICITACAO_LABEL[licitacao.modalidade]}</td>
                     <td className="px-4 py-3 text-ink-soft">{nomeCliente(licitacao.clienteId)}</td>
                     <td className="px-4 py-3 text-ink-soft">
-                      {formatarDataHora(licitacao.dataAberturaSessao)}
+                      {formatarDataHora(dataReferencia)}
                       {urgencia === 'vencido' && (
                         <span className="ml-2 text-xs font-medium text-red-600">⚠ vencido</span>
                       )}
@@ -193,9 +193,24 @@ export function LicitacoesPage() {
                         <span className="ml-2 text-xs font-medium text-brass">⚠ prazo próximo</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-ink-soft">{formatarMoeda(licitacao.valorEstimado)}</td>
+                    <td className="px-4 py-3 text-ink-soft">
+                      {licitacao.valorTotalLicitacao != null ? formatarMoeda(licitacao.valorTotalLicitacao) : 'Sigiloso'}
+                    </td>
                     <td className="px-4 py-3">
-                      <StatusBadge label={STATUS_LICITACAO_LABEL[licitacao.status]} tone={STATUS_TONE[licitacao.status]} />
+                      <StatusPill label={STATUS_LICITACAO_LABEL[licitacao.status]} tone={STATUS_TONE[licitacao.status]} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 font-body text-xs ${
+                          licitacao.decisaoCliente === 'participar'
+                            ? 'bg-forest-mist text-forest-deep'
+                            : licitacao.decisaoCliente === 'recusar'
+                            ? 'bg-charcoal-3/10 text-ink-soft'
+                            : 'bg-brass-pale text-brass'
+                        }`}
+                      >
+                        {DECISAO_CLIENTE_LABEL[licitacao.decisaoCliente]}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
@@ -230,11 +245,11 @@ export function LicitacoesPage() {
       />
 
       <ConfirmDialog
-        isOpen={!!licitacaoParaExcluir}
+        open={!!licitacaoParaExcluir}
         title="Excluir licitação"
-        message={`Tem certeza que deseja excluir a licitação "${licitacaoParaExcluir?.numeroEdital}"? Essa ação não pode ser desfeita.`}
+        description={`Tem certeza que deseja excluir a licitação "${licitacaoParaExcluir?.numeroPregao}"? Essa ação não pode ser desfeita.`}
         confirmLabel="Excluir"
-        danger
+        isLoading={excluindo}
         onConfirm={confirmarExclusao}
         onCancel={() => setLicitacaoParaExcluir(null)}
       />

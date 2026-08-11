@@ -23,9 +23,10 @@ export function AdminDashboard() {
         </h2>
         <p className="mt-2 font-body text-sm text-ink-soft">
           Aqui entrarão, nas próximas etapas: gestão de usuários e permissões,
-          configurações do sistema e relatórios consolidados. Esta tela é
-          exclusiva do perfil <strong>Administrador</strong> — funcionários e
-          clientes não têm acesso a esta rota.
+          configurações do sistema e relatórios consolidados. Cadastro de
+          Clientes e de Funcionários são exclusivos do perfil{' '}
+          <strong>Administrador</strong>; Licitações, Disputas e Relatórios
+          também são acessíveis pelo perfil <strong>Funcionário</strong>.
         </p>
 
         <div className="mt-4 flex flex-col gap-2">
@@ -40,6 +41,30 @@ export function AdminDashboard() {
             className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
           >
             Ir para Cadastro de Funcionários →
+          </Link>
+          <Link
+            to="/admin/licitacoes"
+            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+          >
+            Ir para Licitações →
+          </Link>
+          <Link
+            to="/admin/disputas"
+            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+          >
+            Ir para Disputas →
+          </Link>
+          <Link
+            to="/admin/relatorios"
+            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+          >
+            Ir para Relatórios →
+          </Link>
+          <Link
+            to="/admin/configuracoes"
+            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+          >
+            Ir para Configurações →
           </Link>
         </div>
       </div>

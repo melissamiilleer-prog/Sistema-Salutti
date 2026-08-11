@@ -14,6 +14,11 @@ export interface AuthUser {
   name: string
   email: string
   role: UserRole
+  // Vincula um login de perfil "cliente" ao registro de cliente correspondente
+  // (mockClientesResumo / clienteService) — necessário para o Portal do
+  // Cliente buscar "minhas licitações" via licitacaoService.listarPorCliente().
+  // Só existe (e só faz sentido) para role === 'cliente'.
+  clienteId?: string
 }
 
 /** Formato mockado hoje; ao integrar com Supabase, o campo `password`

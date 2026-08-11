@@ -1,9 +1,25 @@
 // src/types/licitacao.ts
 //
-// Contrato de dados do módulo de Licitações. Qualquer tela ou service que
-// consuma licitações deve depender apenas destes tipos — assim, trocar o
-// mock por uma API real (Supabase/PostgreSQL) não exige mudar nada além
-// de `licitacaoService.ts`.
+// Contrato de dados do módulo de Licitações — reconstruído a partir da
+// Especificação Funcional v2.1, seção 4.2 (5 abas do cadastro) e 4.3
+// (decisão do cliente, incorporada ao cadastro de licitações).
+//
+// Qualquer tela ou service que consuma licitações deve depender apenas
+// destes tipos — assim, trocar o mock por uma API real (Supabase/PostgreSQL)
+// não exige mudar nada além de `licitacaoService.ts`.
+//
+// NOTA DE ESCOPO: o módulo separado de "Propostas Comerciais" foi removido
+// pela spec (seção 4.3) — os campos de condições de pagamento, prazo de
+// entrega e validade já são cobertos pela Aba 3 (Condições Comerciais)
+// deste tipo. `PropostasPage`/`PropostaFormModal` ficam obsoletos e não
+// foram atualizados nesta passada (não estão roteados no App.tsx).
+//
+// NOTA DE ESCOPO 2: os campos que o CLIENTE preenche ao decidir participar
+// (Código interno, Marca, Modelo, Preço Mínimo por item — spec 4.3 e 6.2)
+// foram modelados em `ItemLicitacao.propostaCliente` para a estrutura de
+// dados ficar completa, mas a TELA de preenchimento (Portal do Cliente)
+// não faz parte das 5 abas do cadastro de licitações e não foi construída
+// nesta passada.
 
 export type StatusLicitacao =
   | 'pendente'
@@ -37,12 +53,32 @@ export const MODALIDADE_LICITACAO_LABEL: Record<ModalidadeLicitacao, string> = {
   inexigibilidade: 'Inexigibilidade',
 };
 
-export interface ChecklistItem {
-  id: string;
-  etapa: string;
-  concluido: boolean;
-  concluidoEm?: string; // ISO date, preenchido quando concluido vira true
-}
+export type DecisaoCliente = 'pendente' | 'participar' | 'recusar';
+
+export const DECISAO_CLIENTE_LABEL: Record<DecisaoCliente, string> = {
+  pendente: 'Aguardando decisão',
+  participar: 'Confirmou participação',
+  recusar: 'Recusou participar',
+};
+
+export type StatusProposta = 'rascunho' | 'enviada' | 'recusada';
+
+export const STATUS_PROPOSTA_LABEL: Record<StatusProposta, string> = {
+  rascunho: 'Rascunho',
+  enviada: 'Enviada',
+  recusada: 'Recusada',
+};
+
+// Aba 3 — Condições Comerciais: "Forma de pagamento (crédito em conta,
+// boleto, pix ou outros)" — únicas opções explicitadas na spec.
+export type FormaPagamento = 'credito_conta' | 'boleto' | 'pix' | 'outros';
+
+export const FORMA_PAGAMENTO_LABEL: Record<FormaPagamento, string> = {
+  credito_conta: 'Crédito em conta',
+  boleto: 'Boleto',
+  pix: 'Pix',
+  outros: 'Outros',
+};
 
 export interface HistoricoAcao {
   id: string;
@@ -51,35 +87,119 @@ export interface HistoricoAcao {
   acao: string;
 }
 
+// ---------------------------------------------------------------------------
+// Aba 2 — Habilitação
+// ---------------------------------------------------------------------------
+export interface Habilitacao {
+  exigeAtestado: boolean;
+  exigeQuantidadeMinima: boolean;
+  qualificacaoTecnica: string; // preenchido pelo analista (ou futuramente pela IA)
+  qualificacaoEconomicoFinanceira: string;
+  regularidadeFiscal: string;
+  exigeAmostras: boolean;
+  prazoEntregaAmostraDias?: number; // só relevante quando exigeAmostras = true
+}
+
+// ---------------------------------------------------------------------------
+// Aba 3 — Condições Comerciais
+// ---------------------------------------------------------------------------
+export interface CondicoesComerciais {
+  intervaloLances: string;
+  formaPagamento: FormaPagamento;
+  recebimentoBanco: string; // ex.: "Banco do Brasil" — campo livre, spec cita BB como exemplo
+  prazoPagamentoDias?: number;
+  possuiGarantias: boolean;
+  garantiasDetalhe?: string; // abre quando possuiGarantias = true
+  prazoEntregaDias?: number; // até 2 dígitos
+  localEntrega: string; // detalhamento aberto
+  validadePropostaDias?: number; // até 3 dígitos
+}
+
+// ---------------------------------------------------------------------------
+// Aba 5 — Itens
+// ---------------------------------------------------------------------------
+
+// Preenchido pelo CLIENTE ao decidir participar (spec 4.3 / 6.2). Estrutura
+// de dados prevista aqui; tela do Portal do Cliente é um módulo à parte.
+export interface PropostaClienteItem {
+  codigoInterno?: string;
+  marca?: string;
+  modelo?: string;
+  precoMinimo?: number;
+}
+
+export interface GrupoItens {
+  id: string;
+  nome: string; // ex.: "Grupo 1"
+}
+
+export interface ItemLicitacao {
+  id: string;
+  grupoId?: string; // presente = item pertence a um grupo; ausente = item individual
+  numero: string;
+  descricao: string;
+  unidadeMedida: string;
+  quantidade: number;
+  precoReferencia: number; // valor unitário de referência
+  exclusivoMeEpp: boolean;
+  propostaCliente?: PropostaClienteItem;
+}
+
+// ---------------------------------------------------------------------------
+// Licitação — registro completo
+// ---------------------------------------------------------------------------
 export interface Licitacao {
   id: string;
 
-  // Aba 1 — Dados do Edital
-  numeroEdital: string;
-  orgao: string;
-  modalidade: ModalidadeLicitacao;
+  // Aba 1 — Informações Gerais
+  dataLicitacao: string; // ISO datetime — data e horário originais da sessão
+  dataEfetivaLicitacao?: string; // ISO datetime — só preenchido se a licitação for suspensa e remarcada
+  portal: string;
   objeto: string;
-  portalOrigem: string; // ex: "ComprasNet", "BEC", "Licitações-e"
+  numeroPregao: string;
+  orgao: string;
+  estado: string; // UF
+  municipio: string;
+  modalidade: ModalidadeLicitacao;
+  formaDisputa: string;
+  modoDisputa: string;
+  participacao: string;
+  capag: boolean;
+  restricoesMeEpp: boolean;
   linkEdital?: string;
-  valorEstimado: number;
+  nomeArquivoEdital?: string; // simula o upload do PDF do edital (mock); real vai para Supabase Storage
+  valorTotalLicitacao?: number; // ausente/undefined = orçamento sigiloso
 
-  // Aba 2 — Datas e Prazos
-  dataPublicacao: string; // ISO date
-  dataAberturaSessao: string; // ISO datetime da sessão/disputa
-
-  // Aba 3 — Cliente Vinculado
+  // Vinculação operacional — não é uma das 5 abas da spec, mas necessária
+  // para o fluxo de atribuição de licitações a clientes (seção 2.1 e 6.1)
   clienteId: string;
   status: StatusLicitacao;
-  analistaResponsavel?: string; // nome do analista da "carteira própria" (Cap. 4 do PRD)
 
-  // Aba 4 — Checklist
-  checklist: ChecklistItem[];
+  // Aba 2 — Habilitação
+  habilitacao: Habilitacao;
 
-  // Aba 5 — Observações / Histórico
+  // Aba 3 — Condições Comerciais
+  condicoesComerciais: CondicoesComerciais;
+
+  // Aba 4 — Pontos de Atenção
+  pontosAtencao: string;
+
+  // Aba 5 — Itens
+  grupos: GrupoItens[];
+  itens: ItemLicitacao[];
+
+  // Seção 4.3 — Decisão do Cliente (fora das 5 abas do cadastro)
+  decisaoCliente: DecisaoCliente;
+  motivoRecusaCliente?: string;
+  decisaoClienteEm?: string;
+  cobrarFrete: boolean;
+  percentualFrete?: number; // só relevante quando cobrarFrete = true
+  statusProposta: StatusProposta;
+
   observacoes: string;
   historico: HistoricoAcao[];
 
-  criadoEm: string;
+  criadoEm: string; // "Data de cadastro" — automática
   atualizadoEm: string;
 }
 
@@ -88,12 +208,3 @@ export type LicitacaoFormData = Omit<
   Licitacao,
   'id' | 'historico' | 'criadoEm' | 'atualizadoEm'
 >;
-
-export const CHECKLIST_PADRAO: Omit<ChecklistItem, 'id'>[] = [
-  { etapa: 'Edital baixado', concluido: false },
-  { etapa: 'Resumo do edital feito', concluido: false },
-  { etapa: 'Proposta elaborada', concluido: false },
-  { etapa: 'Proposta enviada ao cliente', concluido: false },
-  { etapa: 'Documentos de habilitação anexados', concluido: false },
-  { etapa: 'Disputa registrada no SIGA Pregão', concluido: false },
-];

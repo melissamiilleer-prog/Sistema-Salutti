@@ -1,17 +1,28 @@
 // src/pages/admin/licitacoes/LicitacaoFormModal.tsx
 //
-// Formulário de criação/edição de Licitação, em 5 abas — mesmo padrão dos
-// módulos de Clientes e Funcionários descrito no README:
-//   1. Dados do Edital
-//   2. Datas e Prazos
-//   3. Cliente Vinculado
-//   4. Checklist
-//   5. Observações / Histórico
+// Formulário de criação/edição de Licitação — reconstruído a partir da
+// Especificação Funcional v2.1, seção 4.2, em 5 abas:
+//   1. Informações Gerais
+//   2. Habilitação
+//   3. Condições Comerciais
+//   4. Pontos de Atenção
+//   5. Itens
+//
+// O campo "Cliente vinculado" e "Status" não fazem parte de nenhuma das 5
+// abas descritas na spec, mas são necessários para o fluxo de atribuição de
+// licitações a clientes (seção 2.1/6.1) — foram colocados na Aba 1.
+//
+// Usa os componentes genéricos do projeto (Modal, Tabs, TextField,
+// SelectField, TextAreaField, CheckboxField, Button).
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/Modal';
 import { Tabs } from '../../../components/Tabs';
-import { InputField, SelectField, TextAreaField, CheckboxField } from '../../../components/FormFields';
+import { TextField } from '../../../components/TextField';
+import { SelectField } from '../../../components/SelectField';
+import { TextAreaField } from '../../../components/TextAreaField';
+import { CheckboxField } from '../../../components/CheckboxField';
+import { Button } from '../../../components/Button';
 import {
   Licitacao,
   LicitacaoFormData,
@@ -19,33 +30,78 @@ import {
   MODALIDADE_LICITACAO_LABEL,
   StatusLicitacao,
   STATUS_LICITACAO_LABEL,
-  CHECKLIST_PADRAO,
+  FormaPagamento,
+  FORMA_PAGAMENTO_LABEL,
+  Habilitacao,
+  CondicoesComerciais,
+  ItemLicitacao,
+  GrupoItens,
+  DECISAO_CLIENTE_LABEL,
 } from '../../../types/licitacao';
 import { mockClientesResumo } from '../../../data/mockClientesResumo';
-import { calcularPrazoInterno, formatarDataHora, classificarUrgenciaPrazo } from '../../../utils/prazoUtils';
+import { calcularPrazoInterno, formatarDataHora, formatarMoeda, classificarUrgenciaPrazo } from '../../../utils/prazoUtils';
+import { totalReferenciaItem, totalReferenciaGrupo, totalReferenciaOportunidade } from '../../../utils/licitacaoCalculos';
 
 const TABS = [
-  { id: 'edital', label: 'Dados do Edital' },
-  { id: 'prazos', label: 'Datas e Prazos' },
-  { id: 'cliente', label: 'Cliente Vinculado' },
-  { id: 'checklist', label: 'Checklist' },
-  { id: 'observacoes', label: 'Observações / Histórico' },
+  { id: 'gerais', label: 'Informações Gerais' },
+  { id: 'habilitacao', label: 'Habilitação' },
+  { id: 'comerciais', label: 'Cond. Comerciais' },
+  { id: 'atencao', label: 'Pontos de Atenção' },
+  { id: 'itens', label: 'Itens' },
 ];
+
+function gerarIdLocal(prefixo: string): string {
+  return `${prefixo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 function criarFormularioVazio(): LicitacaoFormData {
   return {
-    numeroEdital: '',
-    orgao: '',
-    modalidade: 'pregao_eletronico',
+    dataLicitacao: '',
+    portal: '',
     objeto: '',
-    portalOrigem: '',
+    numeroPregao: '',
+    orgao: '',
+    estado: '',
+    municipio: '',
+    modalidade: 'pregao_eletronico',
+    formaDisputa: '',
+    modoDisputa: '',
+    participacao: '',
+    capag: false,
+    restricoesMeEpp: false,
     linkEdital: '',
-    valorEstimado: 0,
-    dataPublicacao: '',
-    dataAberturaSessao: '',
+    nomeArquivoEdital: '',
+    valorTotalLicitacao: undefined,
+
     clienteId: '',
     status: 'pendente',
-    checklist: CHECKLIST_PADRAO.map((c, i) => ({ ...c, id: `chk-${i + 1}` })),
+
+    habilitacao: {
+      exigeAtestado: false,
+      exigeQuantidadeMinima: false,
+      qualificacaoTecnica: '',
+      qualificacaoEconomicoFinanceira: '',
+      regularidadeFiscal: '',
+      exigeAmostras: false,
+    },
+
+    condicoesComerciais: {
+      intervaloLances: '',
+      formaPagamento: 'credito_conta',
+      recebimentoBanco: '',
+      possuiGarantias: false,
+      localEntrega: '',
+    },
+
+    pontosAtencao: '',
+
+    grupos: [],
+    itens: [],
+
+    decisaoCliente: 'pendente',
+    cobrarFrete: false,
+    statusProposta: 'rascunho',
+
     observacoes: '',
   };
 }
@@ -58,13 +114,13 @@ interface LicitacaoFormModalProps {
 }
 
 export function LicitacaoFormModal({ isOpen, onClose, onSave, licitacaoEmEdicao }: LicitacaoFormModalProps) {
-  const [abaAtiva, setAbaAtiva] = useState('edital');
+  const [abaAtiva, setAbaAtiva] = useState('gerais');
   const [form, setForm] = useState<LicitacaoFormData>(criarFormularioVazio());
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    setAbaAtiva('edital');
+    setAbaAtiva('gerais');
     setForm(licitacaoEmEdicao ? { ...licitacaoEmEdicao } : criarFormularioVazio());
   }, [isOpen, licitacaoEmEdicao]);
 
@@ -72,13 +128,61 @@ export function LicitacaoFormModal({ isOpen, onClose, onSave, licitacaoEmEdicao 
     setForm((atual) => ({ ...atual, [campo]: valor }));
   }
 
-  function alternarChecklistItem(id: string) {
+  function atualizarHabilitacao<K extends keyof Habilitacao>(campo: K, valor: Habilitacao[K]) {
+    setForm((atual) => ({ ...atual, habilitacao: { ...atual.habilitacao, [campo]: valor } }));
+  }
+
+  function atualizarCondicoes<K extends keyof CondicoesComerciais>(campo: K, valor: CondicoesComerciais[K]) {
+    setForm((atual) => ({ ...atual, condicoesComerciais: { ...atual.condicoesComerciais, [campo]: valor } }));
+  }
+
+  // --- Aba 5 — Itens: grupos e itens ------------------------------------
+
+  function adicionarGrupo() {
+    const novoGrupo: GrupoItens = { id: gerarIdLocal('grp'), nome: `Grupo ${form.grupos.length + 1}` };
+    setForm((atual) => ({ ...atual, grupos: [...atual.grupos, novoGrupo] }));
+  }
+
+  function renomearGrupo(id: string, nome: string) {
     setForm((atual) => ({
       ...atual,
-      checklist: atual.checklist.map((item) =>
-        item.id === id ? { ...item, concluido: !item.concluido } : item
-      ),
+      grupos: atual.grupos.map((g) => (g.id === id ? { ...g, nome } : g)),
     }));
+  }
+
+  function removerGrupo(id: string) {
+    // Remove o grupo e os itens que pertenciam a ele — para manter um item
+    // órfão, seria preciso "desvincular" antes de excluir o grupo.
+    setForm((atual) => ({
+      ...atual,
+      grupos: atual.grupos.filter((g) => g.id !== id),
+      itens: atual.itens.filter((i) => i.grupoId !== id),
+    }));
+  }
+
+  function adicionarItem(grupoId?: string) {
+    const novoItem: ItemLicitacao = {
+      id: gerarIdLocal('item'),
+      grupoId,
+      numero: '',
+      descricao: '',
+      unidadeMedida: '',
+      quantidade: 1,
+      precoReferencia: 0,
+      exclusivoMeEpp: false,
+    };
+    setForm((atual) => ({ ...atual, itens: [...atual.itens, novoItem] }));
+  }
+
+  function atualizarItem<K extends keyof ItemLicitacao>(id: string, campo: K, valor: ItemLicitacao[K]) {
+    setForm((atual) => ({
+      ...atual,
+      itens: atual.itens.map((item) => (item.id === id ? { ...item, [campo]: valor } : item)),
+    }));
+  }
+
+  function removerItem(id: string) {
+    setForm((atual) => ({ ...atual, itens: atual.itens.filter((i) => i.id !== id) }));
   }
 
   async function handleSalvar() {
@@ -91,89 +195,57 @@ export function LicitacaoFormModal({ isOpen, onClose, onSave, licitacaoEmEdicao 
     }
   }
 
-  const prazoInterno = form.dataAberturaSessao ? calcularPrazoInterno(form.dataAberturaSessao) : null;
-  const urgencia = form.dataAberturaSessao ? classificarUrgenciaPrazo(form.dataAberturaSessao) : null;
+  const dataParaPrazo = form.dataEfetivaLicitacao || form.dataLicitacao;
+  const prazoInterno = dataParaPrazo ? calcularPrazoInterno(dataParaPrazo) : null;
+  const urgencia = dataParaPrazo ? classificarUrgenciaPrazo(dataParaPrazo) : null;
+
+  const itensIndividuais = form.itens.filter((i) => !i.grupoId);
+  const totalOportunidade = totalReferenciaOportunidade(form.itens);
 
   return (
     <Modal
-      isOpen={isOpen}
+      open={isOpen}
       onClose={onClose}
-      title={licitacaoEmEdicao ? `Editar licitação — ${licitacaoEmEdicao.numeroEdital}` : 'Nova licitação'}
-      widthClass="max-w-4xl"
+      title={licitacaoEmEdicao ? `Editar licitação — ${licitacaoEmEdicao.numeroPregao}` : 'Nova licitação'}
+      size="xl"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSalvar} disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar licitação'}
+          </Button>
+        </>
+      }
     >
       <Tabs tabs={TABS} activeTab={abaAtiva} onChange={setAbaAtiva} />
 
       <div className="mt-5 min-h-[320px]">
-        {abaAtiva === 'edital' && (
-          <div className="grid grid-cols-2 gap-4">
-            <InputField
-              label="Número do edital"
-              required
-              value={form.numeroEdital}
-              onChange={(v) => atualizarCampo('numeroEdital', v)}
-              placeholder="Ex: PE 045/2026"
-            />
-            <InputField
-              label="Órgão"
-              required
-              value={form.orgao}
-              onChange={(v) => atualizarCampo('orgao', v)}
-              placeholder="Ex: Prefeitura Municipal de..."
-            />
-            <SelectField
-              label="Modalidade"
-              required
-              value={form.modalidade}
-              onChange={(v) => atualizarCampo('modalidade', v as ModalidadeLicitacao)}
-              options={Object.entries(MODALIDADE_LICITACAO_LABEL).map(([value, label]) => ({ value, label }))}
-            />
-            <InputField
-              label="Portal de origem"
-              value={form.portalOrigem}
-              onChange={(v) => atualizarCampo('portalOrigem', v)}
-              placeholder="Ex: ComprasNet, BEC, Licitações-e"
-            />
-            <InputField
-              label="Valor estimado (R$)"
-              type="number"
-              value={form.valorEstimado}
-              onChange={(v) => atualizarCampo('valorEstimado', Number(v))}
-            />
-            <InputField
-              label="Link do edital"
-              value={form.linkEdital ?? ''}
-              onChange={(v) => atualizarCampo('linkEdital', v)}
-              placeholder="https://..."
-            />
-            <div className="col-span-2">
-              <TextAreaField
-                label="Objeto"
+        {/* Aba 1 — Informações Gerais */}
+        {abaAtiva === 'gerais' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <TextField
+                label="Data e horário da licitação *"
                 required
-                value={form.objeto}
-                onChange={(v) => atualizarCampo('objeto', v)}
-                placeholder="Descreva o objeto da licitação"
+                type="datetime-local"
+                value={form.dataLicitacao?.slice(0, 16) ?? ''}
+                onChange={(e) => atualizarCampo('dataLicitacao', new Date(e.target.value).toISOString())}
+              />
+              <TextField
+                label="Data efetiva (se suspensa e remarcada)"
+                type="datetime-local"
+                value={form.dataEfetivaLicitacao?.slice(0, 16) ?? ''}
+                onChange={(e) =>
+                  atualizarCampo('dataEfetivaLicitacao', e.target.value ? new Date(e.target.value).toISOString() : undefined)
+                }
               />
             </div>
-          </div>
-        )}
 
-        {abaAtiva === 'prazos' && (
-          <div className="grid grid-cols-2 gap-4">
-            <InputField
-              label="Data de publicação"
-              type="date"
-              value={form.dataPublicacao?.slice(0, 10) ?? ''}
-              onChange={(v) => atualizarCampo('dataPublicacao', new Date(v).toISOString())}
-            />
-            <InputField
-              label="Data/hora da sessão de abertura"
-              type="datetime-local"
-              value={form.dataAberturaSessao?.slice(0, 16) ?? ''}
-              onChange={(v) => atualizarCampo('dataAberturaSessao', new Date(v).toISOString())}
-            />
             {prazoInterno && (
               <div
-                className={`col-span-2 rounded-lg border px-4 py-3 font-body text-sm ${
+                className={`rounded-lg border px-4 py-3 font-body text-sm ${
                   urgencia === 'vencido'
                     ? 'border-red-200 bg-red-50 text-red-700'
                     : urgencia === 'atencao'
@@ -181,93 +253,471 @@ export function LicitacaoFormModal({ isOpen, onClose, onSave, licitacaoEmEdicao 
                     : 'border-forest/30 bg-forest-mist text-forest-deep'
                 }`}
               >
-                <strong>Prazo interno (regra de 3 dias úteis, 18h):</strong> {formatarDataHora(prazoInterno.toISOString())}
+                <strong>Limite de retorno do cliente (automático):</strong> {formatarDataHora(prazoInterno.toISOString())}
                 {urgencia === 'vencido' && ' — já vencido!'}
                 {urgencia === 'atencao' && ' — atenção, prazo próximo!'}
+                {licitacaoEmEdicao && (
+                  <span className="ml-1 text-xs opacity-80">
+                    (cadastrada em {formatarDataHora(licitacaoEmEdicao.criadoEm)})
+                  </span>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {abaAtiva === 'cliente' && (
-          <div className="grid grid-cols-2 gap-4">
-            <SelectField
-              label="Cliente vinculado"
-              required
-              value={form.clienteId}
-              onChange={(v) => atualizarCampo('clienteId', v)}
-              placeholder="Selecione um cliente"
-              options={mockClientesResumo.map((c) => ({ value: c.id, label: c.nomeFantasia }))}
-            />
-            <SelectField
-              label="Status"
-              required
-              value={form.status}
-              onChange={(v) => atualizarCampo('status', v as StatusLicitacao)}
-              options={Object.entries(STATUS_LICITACAO_LABEL).map(([value, label]) => ({ value, label }))}
-            />
-          </div>
-        )}
-
-        {abaAtiva === 'checklist' && (
-          <div className="space-y-3">
-            <p className="font-body text-sm text-ink-soft">
-              Marque as etapas concluídas. Isso alimenta o andamento visível na Mesa de Trabalho.
-            </p>
-            {form.checklist.map((item) => (
-              <CheckboxField
-                key={item.id}
-                label={item.etapa}
-                checked={item.concluido}
-                onChange={() => alternarChecklistItem(item.id)}
-                hint={item.concluidoEm ? `Concluído em ${formatarDataHora(item.concluidoEm)}` : undefined}
+            <div className="grid grid-cols-2 gap-4">
+              <TextField
+                label="Portal *"
+                required
+                value={form.portal}
+                onChange={(e) => atualizarCampo('portal', e.target.value)}
+                placeholder="Ex: ComprasNet, BEC, Licitações-e"
               />
-            ))}
-          </div>
-        )}
+              <TextField
+                label="Número do pregão *"
+                required
+                value={form.numeroPregao}
+                onChange={(e) => atualizarCampo('numeroPregao', e.target.value)}
+                placeholder="Ex: PE 045/2026"
+              />
+              <TextField
+                label="Órgão *"
+                required
+                value={form.orgao}
+                onChange={(e) => atualizarCampo('orgao', e.target.value)}
+                placeholder="Ex: Prefeitura Municipal de..."
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <TextField
+                  label="Estado (UF) *"
+                  required
+                  maxLength={2}
+                  value={form.estado}
+                  onChange={(e) => atualizarCampo('estado', e.target.value.toUpperCase())}
+                  placeholder="SP"
+                />
+                <TextField
+                  label="Município *"
+                  required
+                  value={form.municipio}
+                  onChange={(e) => atualizarCampo('municipio', e.target.value)}
+                />
+              </div>
+              <SelectField
+                label="Modalidade *"
+                required
+                value={form.modalidade}
+                onChange={(e) => atualizarCampo('modalidade', e.target.value as ModalidadeLicitacao)}
+                options={Object.entries(MODALIDADE_LICITACAO_LABEL).map(([value, label]) => ({ value, label }))}
+              />
+              <TextField
+                label="Forma de disputa"
+                value={form.formaDisputa}
+                onChange={(e) => atualizarCampo('formaDisputa', e.target.value)}
+                placeholder="Ex: Aberto, Aberto-Fechado, Fechado"
+              />
+              <TextField
+                label="Modo de disputa"
+                value={form.modoDisputa}
+                onChange={(e) => atualizarCampo('modoDisputa', e.target.value)}
+                placeholder="Ex: Eletrônico, Presencial"
+              />
+              <TextField
+                label="Participação"
+                value={form.participacao}
+                onChange={(e) => atualizarCampo('participacao', e.target.value)}
+                placeholder="Ex: Ampla, Exclusiva ME/EPP"
+              />
+              <TextField
+                label="Valor total da licitação (R$)"
+                type="number"
+                value={form.valorTotalLicitacao ?? ''}
+                onChange={(e) =>
+                  atualizarCampo('valorTotalLicitacao', e.target.value === '' ? undefined : Number(e.target.value))
+                }
+                placeholder="Deixe em branco = orçamento sigiloso"
+              />
+              <TextField
+                label="Link do edital"
+                value={form.linkEdital ?? ''}
+                onChange={(e) => atualizarCampo('linkEdital', e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
 
-        {abaAtiva === 'observacoes' && (
-          <div className="space-y-5">
-            <TextAreaField
-              label="Observações"
-              value={form.observacoes}
-              onChange={(v) => atualizarCampo('observacoes', v)}
-              rows={4}
-              placeholder="Observações internas sobre esta licitação"
-            />
+            <div>
+              <label className="mb-1.5 block font-mono text-xs uppercase tracking-wide text-ink-soft">
+                PDF do edital
+              </label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => atualizarCampo('nomeArquivoEdital', e.target.files?.[0]?.name ?? '')}
+                className="block w-full font-body text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-forest-mist file:px-3.5 file:py-2 file:font-body file:text-sm file:font-medium file:text-forest-deep"
+              />
+              {form.nomeArquivoEdital && (
+                <p className="mt-1 font-body text-xs text-ink-soft">
+                  Arquivo selecionado: {form.nomeArquivoEdital}{' '}
+                  <span className="italic">(upload simulado — sem backend de arquivos ainda)</span>
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <CheckboxField
+                label="CAPAG"
+                checked={form.capag}
+                onChange={(e) => atualizarCampo('capag', e.target.checked)}
+              />
+              <CheckboxField
+                label="Restrições ME/EPP"
+                checked={form.restricoesMeEpp}
+                onChange={(e) => atualizarCampo('restricoesMeEpp', e.target.checked)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t border-ink-soft/10 pt-5">
+              <SelectField
+                label="Cliente vinculado *"
+                required
+                value={form.clienteId}
+                onChange={(e) => atualizarCampo('clienteId', e.target.value)}
+                placeholder="Selecione um cliente"
+                options={mockClientesResumo.map((c) => ({ value: c.id, label: c.nomeFantasia }))}
+              />
+              <SelectField
+                label="Status *"
+                required
+                value={form.status}
+                onChange={(e) => atualizarCampo('status', e.target.value as StatusLicitacao)}
+                options={Object.entries(STATUS_LICITACAO_LABEL).map(([value, label]) => ({ value, label }))}
+              />
+            </div>
+
             {licitacaoEmEdicao && (
-              <div>
-                <h4 className="mb-2 font-body text-sm font-medium text-ink">Histórico de ações</h4>
-                <ul className="space-y-2 rounded-lg border border-charcoal-3/10 bg-paper-2 p-3 font-mono text-xs text-ink-soft">
-                  {licitacaoEmEdicao.historico.map((h) => (
-                    <li key={h.id}>
-                      {formatarDataHora(h.data)} — <span className="text-ink">{h.usuario}</span>: {h.acao}
-                    </li>
-                  ))}
-                </ul>
+              <div className="rounded-lg border border-ink-soft/15 bg-forest-mist/30 px-4 py-3 font-body text-sm">
+                <p className="mb-0.5 font-medium text-ink">Decisão do cliente (Portal do Cliente)</p>
+                <p className="text-ink-soft">
+                  {DECISAO_CLIENTE_LABEL[licitacaoEmEdicao.decisaoCliente]}
+                  {licitacaoEmEdicao.decisaoClienteEm && ` em ${formatarDataHora(licitacaoEmEdicao.decisaoClienteEm)}`}
+                  {licitacaoEmEdicao.motivoRecusaCliente && ` — "${licitacaoEmEdicao.motivoRecusaCliente}"`}
+                </p>
+                <p className="mt-1 text-xs text-ink-soft/70">
+                  Essa decisão é registrada pelo próprio cliente no Portal do Cliente, não é editável por aqui.
+                </p>
               </div>
             )}
           </div>
         )}
-      </div>
 
-      <div className="mt-6 flex justify-end gap-3 border-t border-charcoal-3/10 pt-4 font-body text-sm">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-charcoal-3/20 px-4 py-2 text-ink hover:bg-paper-2"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSalvar}
-          disabled={salvando}
-          className="rounded-md bg-forest px-4 py-2 font-medium text-paper hover:bg-forest-deep disabled:opacity-60"
-        >
-          {salvando ? 'Salvando...' : 'Salvar licitação'}
-        </button>
+        {/* Aba 2 — Habilitação */}
+        {abaAtiva === 'habilitacao' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <CheckboxField
+                label="Exige atestado de capacidade técnica?"
+                checked={form.habilitacao.exigeAtestado}
+                onChange={(e) => atualizarHabilitacao('exigeAtestado', e.target.checked)}
+              />
+              <CheckboxField
+                label="Exige quantidade mínima no atestado?"
+                checked={form.habilitacao.exigeQuantidadeMinima}
+                onChange={(e) => atualizarHabilitacao('exigeQuantidadeMinima', e.target.checked)}
+              />
+            </div>
+
+            {(form.habilitacao.exigeAtestado || form.habilitacao.exigeQuantidadeMinima) && (
+              <TextAreaField
+                label="Qualificação técnica"
+                value={form.habilitacao.qualificacaoTecnica}
+                onChange={(e) => atualizarHabilitacao('qualificacaoTecnica', e.target.value)}
+                placeholder="Detalhe a exigência de atestado / quantidade mínima"
+                rows={3}
+              />
+            )}
+
+            <TextAreaField
+              label="Qualificação econômico-financeira"
+              value={form.habilitacao.qualificacaoEconomicoFinanceira}
+              onChange={(e) => atualizarHabilitacao('qualificacaoEconomicoFinanceira', e.target.value)}
+              rows={3}
+            />
+
+            <TextAreaField
+              label="Regularidade fiscal"
+              value={form.habilitacao.regularidadeFiscal}
+              onChange={(e) => atualizarHabilitacao('regularidadeFiscal', e.target.value)}
+              rows={3}
+            />
+
+            <CheckboxField
+              label="Exige amostras?"
+              checked={form.habilitacao.exigeAmostras}
+              onChange={(e) => atualizarHabilitacao('exigeAmostras', e.target.checked)}
+            />
+            {form.habilitacao.exigeAmostras && (
+              <TextField
+                label="Prazo para entrega da amostra (dias)"
+                type="number"
+                value={form.habilitacao.prazoEntregaAmostraDias ?? ''}
+                onChange={(e) =>
+                  atualizarHabilitacao(
+                    'prazoEntregaAmostraDias',
+                    e.target.value === '' ? undefined : Number(e.target.value)
+                  )
+                }
+                className="max-w-xs"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Aba 3 — Condições Comerciais */}
+        {abaAtiva === 'comerciais' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <TextField
+                label="Intervalo de lances"
+                value={form.condicoesComerciais.intervaloLances}
+                onChange={(e) => atualizarCondicoes('intervaloLances', e.target.value)}
+                placeholder="Ex: R$ 500,00 entre lances"
+              />
+              <SelectField
+                label="Forma de pagamento"
+                value={form.condicoesComerciais.formaPagamento}
+                onChange={(e) => atualizarCondicoes('formaPagamento', e.target.value as FormaPagamento)}
+                options={Object.entries(FORMA_PAGAMENTO_LABEL).map(([value, label]) => ({ value, label }))}
+              />
+              <TextField
+                label="Recebimento em qual banco"
+                value={form.condicoesComerciais.recebimentoBanco}
+                onChange={(e) => atualizarCondicoes('recebimentoBanco', e.target.value)}
+                placeholder="Ex: Banco do Brasil"
+              />
+              <TextField
+                label="Prazo de pagamento (dias)"
+                type="number"
+                value={form.condicoesComerciais.prazoPagamentoDias ?? ''}
+                onChange={(e) =>
+                  atualizarCondicoes('prazoPagamentoDias', e.target.value === '' ? undefined : Number(e.target.value))
+                }
+              />
+              <TextField
+                label="Prazo de entrega (dias, até 2 dígitos)"
+                type="number"
+                maxLength={2}
+                value={form.condicoesComerciais.prazoEntregaDias ?? ''}
+                onChange={(e) => {
+                  const valor = e.target.value === '' ? undefined : Math.min(99, Number(e.target.value));
+                  atualizarCondicoes('prazoEntregaDias', valor);
+                }}
+              />
+              <TextField
+                label="Validade da proposta (dias, até 3 dígitos)"
+                type="number"
+                maxLength={3}
+                value={form.condicoesComerciais.validadePropostaDias ?? ''}
+                onChange={(e) => {
+                  const valor = e.target.value === '' ? undefined : Math.min(999, Number(e.target.value));
+                  atualizarCondicoes('validadePropostaDias', valor);
+                }}
+              />
+            </div>
+
+            <TextAreaField
+              label="Local de entrega"
+              value={form.condicoesComerciais.localEntrega}
+              onChange={(e) => atualizarCondicoes('localEntrega', e.target.value)}
+              rows={2}
+            />
+
+            <CheckboxField
+              label="Possui garantias?"
+              checked={form.condicoesComerciais.possuiGarantias}
+              onChange={(e) => atualizarCondicoes('possuiGarantias', e.target.checked)}
+            />
+            {form.condicoesComerciais.possuiGarantias && (
+              <TextAreaField
+                label="Detalhamento das garantias"
+                value={form.condicoesComerciais.garantiasDetalhe ?? ''}
+                onChange={(e) => atualizarCondicoes('garantiasDetalhe', e.target.value)}
+                rows={2}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Aba 4 — Pontos de Atenção */}
+        {abaAtiva === 'atencao' && (
+          <div className="space-y-2">
+            <p className="font-body text-sm text-ink-soft">
+              Riscos, restrições, observações e estratégia. Futuramente será preenchido automaticamente pela IA a
+              partir da leitura do edital.
+            </p>
+            <TextAreaField
+              label="Pontos de atenção"
+              value={form.pontosAtencao}
+              onChange={(e) => atualizarCampo('pontosAtencao', e.target.value)}
+              rows={8}
+              placeholder="Descreva riscos, restrições e estratégia para esta licitação"
+            />
+          </div>
+        )}
+
+        {/* Aba 5 — Itens */}
+        {abaAtiva === 'itens' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="font-body text-sm text-ink-soft">
+                Cadastre os itens individuais ou organize-os em grupos. O total da oportunidade é calculado
+                automaticamente a partir do preço de referência × quantidade de cada item.
+              </p>
+              <div className="flex shrink-0 gap-2">
+                <Button variant="ghost" onClick={adicionarGrupo} className="whitespace-nowrap">
+                  + Novo grupo
+                </Button>
+                <Button variant="ghost" onClick={() => adicionarItem()} className="whitespace-nowrap">
+                  + Item individual
+                </Button>
+              </div>
+            </div>
+
+            {form.grupos.map((grupo) => {
+              const itensDoGrupo = form.itens.filter((i) => i.grupoId === grupo.id);
+              return (
+                <div key={grupo.id} className="rounded-xl border border-ink-soft/15 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <input
+                      value={grupo.nome}
+                      onChange={(e) => renomearGrupo(grupo.id, e.target.value)}
+                      className="flex-1 rounded-md border border-transparent bg-transparent font-body text-sm font-semibold text-ink hover:border-ink-soft/20 focus:border-forest focus:outline-none"
+                    />
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="ghost" onClick={() => adicionarItem(grupo.id)} className="text-xs">
+                        + Item no grupo
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => removerGrupo(grupo.id)}
+                        className="font-body text-xs text-red-600 hover:underline"
+                      >
+                        Excluir grupo
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {itensDoGrupo.map((item) => (
+                      <ItemLicitacaoRow key={item.id} item={item} onChange={atualizarItem} onRemover={removerItem} />
+                    ))}
+                    {itensDoGrupo.length === 0 && (
+                      <p className="font-body text-xs italic text-ink-soft">Nenhum item neste grupo ainda.</p>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-right font-body text-sm font-medium text-forest-deep">
+                    Total do grupo: {formatarMoeda(totalReferenciaGrupo(form.itens, grupo.id))}
+                  </p>
+                </div>
+              );
+            })}
+
+            {(itensIndividuais.length > 0 || form.grupos.length === 0) && (
+              <div className="rounded-xl border border-ink-soft/15 p-4">
+                <p className="mb-3 font-body text-sm font-semibold text-ink">Itens individuais</p>
+                <div className="space-y-3">
+                  {itensIndividuais.map((item) => (
+                    <ItemLicitacaoRow key={item.id} item={item} onChange={atualizarItem} onRemover={removerItem} />
+                  ))}
+                  {itensIndividuais.length === 0 && (
+                    <p className="font-body text-xs italic text-ink-soft">Nenhum item individual ainda.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-xl border border-forest/30 bg-forest-mist px-4 py-3 text-right">
+              <span className="font-body text-sm font-semibold text-forest-deep">
+                Total da oportunidade: {formatarMoeda(totalOportunidade)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
+  );
+}
+
+// Linha de edição de um item — reutilizada tanto dentro de grupos quanto na
+// lista de itens individuais.
+function ItemLicitacaoRow({
+  item,
+  onChange,
+  onRemover,
+}: {
+  item: ItemLicitacao;
+  onChange: <K extends keyof ItemLicitacao>(id: string, campo: K, valor: ItemLicitacao[K]) => void;
+  onRemover: (id: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-12 items-end gap-2 rounded-lg bg-paper-2/60 p-3">
+      <div className="col-span-1">
+        <TextField
+          label="Nº"
+          value={item.numero}
+          onChange={(e) => onChange(item.id, 'numero', e.target.value)}
+        />
+      </div>
+      <div className="col-span-3">
+        <TextField
+          label="Descrição"
+          value={item.descricao}
+          onChange={(e) => onChange(item.id, 'descricao', e.target.value)}
+        />
+      </div>
+      <div className="col-span-2">
+        <TextField
+          label="Unidade"
+          value={item.unidadeMedida}
+          onChange={(e) => onChange(item.id, 'unidadeMedida', e.target.value)}
+        />
+      </div>
+      <div className="col-span-1">
+        <TextField
+          label="Qtde"
+          type="number"
+          value={item.quantidade}
+          onChange={(e) => onChange(item.id, 'quantidade', Number(e.target.value))}
+        />
+      </div>
+      <div className="col-span-2">
+        <TextField
+          label="Preço ref. (R$)"
+          type="number"
+          value={item.precoReferencia}
+          onChange={(e) => onChange(item.id, 'precoReferencia', Number(e.target.value))}
+        />
+      </div>
+      <div className="col-span-2">
+        <p className="font-mono text-xs uppercase tracking-wide text-ink-soft">Total ref.</p>
+        <p className="py-2.5 font-body text-sm font-medium text-ink">{formatarMoeda(totalReferenciaItem(item))}</p>
+      </div>
+      <div className="col-span-1 flex justify-end">
+        <button
+          type="button"
+          onClick={() => onRemover(item.id)}
+          aria-label="Remover item"
+          className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="col-span-12">
+        <CheckboxField
+          label="Exclusivo para ME/EPP"
+          checked={item.exclusivoMeEpp}
+          onChange={(e) => onChange(item.id, 'exclusivoMeEpp', e.target.checked)}
+        />
+      </div>
+    </div>
   );
 }

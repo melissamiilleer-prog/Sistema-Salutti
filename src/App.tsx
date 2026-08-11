@@ -7,6 +7,10 @@ import { RoleRedirect } from '@/pages/RoleRedirect'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { ClientesPage } from '@/pages/admin/ClientesPage'
 import { FuncionariosPage } from '@/pages/admin/FuncionariosPage'
+import { LicitacoesPage } from '@/pages/admin/licitacoes/LicitacoesPage'
+import { DisputasPage } from '@/pages/admin/disputas/DisputasPage'
+import { RelatoriosPage } from '@/pages/admin/relatorios/RelatoriosPage'
+import { ConfiguracoesPage } from '@/pages/admin/ConfiguracoesPage'
 import { FuncionarioDashboard } from '@/pages/funcionario/FuncionarioDashboard'
 import { ClienteDashboard } from '@/pages/cliente/ClienteDashboard'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -46,6 +50,42 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <FuncionariosPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/licitacoes"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+                <LicitacoesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/disputas"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+                <DisputasPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/relatorios"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+                <RelatoriosPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/configuracoes"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ConfiguracoesPage />
               </ProtectedRoute>
             }
           />

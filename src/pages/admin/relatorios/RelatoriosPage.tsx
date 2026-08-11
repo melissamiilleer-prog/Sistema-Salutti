@@ -1,30 +1,39 @@
 // src/pages/admin/relatorios/RelatoriosPage.tsx
 //
-// Módulo de Relatórios (Cap. 5 e 9 do PRD — "relatórios simples" no MVP).
-// Três abas: Licitações, Propostas, Disputas. Cada uma tem filtros básicos,
-// indicadores-resumo e botões de exportação em Excel/PDF.
+// Módulo de Relatórios. Duas abas: Licitações e Disputas — a aba de
+// Propostas foi removida porque a Especificação Funcional v2.1 (seção 4.3)
+// eliminou o módulo separado de Propostas Comerciais; os dados que antes
+// vinham de lá agora fazem parte da própria Licitação (Aba 3 — Condições
+// Comerciais — e a seção de Decisão do Cliente). Cada aba tem filtros
+// básicos, indicadores-resumo e botões de exportação em Excel/PDF.
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { licitacaoService } from '../../../services/licitacaoService';
-import { propostaService } from '../../../services/propostaService';
 import { disputaService } from '../../../services/disputaService';
 import { Licitacao, STATUS_LICITACAO_LABEL, MODALIDADE_LICITACAO_LABEL } from '../../../types/licitacao';
-import { Proposta, STATUS_PROPOSTA_LABEL, calcularTotalProposta } from '../../../types/proposta';
 import { Disputa, RESULTADO_DISPUTA_LABEL } from '../../../types/disputa';
 import { mockClientesResumo } from '../../../data/mockClientesResumo';
 import { formatarDataHora, formatarMoeda } from '../../../utils/prazoUtils';
+import { totalReferenciaOportunidade } from '../../../utils/licitacaoCalculos';
 import { exportarParaExcel, exportarParaPDF, ColunaRelatorio } from '../../../utils/exportUtils';
 
-type AbaRelatorio = 'licitacoes' | 'propostas' | 'disputas';
+type AbaRelatorio = 'licitacoes' | 'disputas';
 
 const ABAS: { id: AbaRelatorio; label: string }[] = [
   { id: 'licitacoes', label: 'Licitações' },
-  { id: 'propostas', label: 'Propostas' },
   { id: 'disputas', label: 'Disputas' },
 ];
 
 function nomeCliente(clienteId: string): string {
   return mockClientesResumo.find((c) => c.id === clienteId)?.nomeFantasia ?? '—';
+}
+
+// Valor de referência de uma licitação para relatórios/exportação: usa o
+// valor total informado na Aba 1 quando existir; senão, cai para a soma
+// calculada dos itens (Aba 5). Licitações sem valor e sem itens (orçamento
+// sigiloso, ainda sem itens cadastrados) retornam 0.
+function valorReferenciaLicitacao(l: Licitacao): number {
+  return l.valorTotalLicitacao ?? totalReferenciaOportunidade(l.itens);
 }
 
 function dentroDoPeriodo(dataISO: string | undefined, de: string, ate: string): boolean {
@@ -58,7 +67,6 @@ function CardResumo({ label, valor, tone = 'default' }: CardResumoProps) {
 export function RelatoriosPage() {
   const [aba, setAba] = useState<AbaRelatorio>('licitacoes');
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
-  const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [disputas, setDisputas] = useState<Disputa[]>([]);
   const [carregando, setCarregando] = useState(true);
 
@@ -68,13 +76,11 @@ export function RelatoriosPage() {
 
   const carregar = useCallback(async () => {
     setCarregando(true);
-    const [resLicitacoes, resPropostas, resDisputas] = await Promise.all([
+    const [resLicitacoes, resDisputas] = await Promise.all([
       licitacaoService.listar({ pageSize: 1000 }),
-      propostaService.listarTodas(),
       disputaService.listarTodas(),
     ]);
     setLicitacoes(resLicitacoes.itens);
-    setPropostas(resPropostas);
     setDisputas(resDisputas);
     setCarregando(false);
   }, []);
@@ -92,18 +98,11 @@ export function RelatoriosPage() {
     () =>
       licitacoes.filter((l) => {
         if (statusFiltro && l.status !== statusFiltro) return false;
-        return dentroDoPeriodo(l.dataPublicacao, dataDe, dataAte);
+        // Filtra pela data de cadastro — a Aba 1 não tem mais um campo
+        // separado de "data de publicação" na spec v2.1.
+        return dentroDoPeriodo(l.criadoEm, dataDe, dataAte);
       }),
     [licitacoes, statusFiltro, dataDe, dataAte]
-  );
-
-  const propostasFiltradas = useMemo(
-    () =>
-      propostas.filter((p) => {
-        if (statusFiltro && p.status !== statusFiltro) return false;
-        return dentroDoPeriodo(p.dataEnvio, dataDe, dataAte);
-      }),
-    [propostas, statusFiltro, dataDe, dataAte]
   );
 
   const disputasFiltradas = useMemo(
@@ -116,25 +115,15 @@ export function RelatoriosPage() {
   );
 
   // ---- Indicadores-resumo por aba ----
-  const indicadores = useMemo(() => {
+  const indicadores = useMemo((): CardResumoProps[] => {
     if (aba === 'licitacoes') {
       const total = licitacoesFiltradas.length;
-      const valorTotal = licitacoesFiltradas.reduce((s, l) => s + l.valorEstimado, 0);
+      const valorTotal = licitacoesFiltradas.reduce((s, l) => s + valorReferenciaLicitacao(l), 0);
       const ganhas = licitacoesFiltradas.filter((l) => l.status === 'ganho').length;
       return [
         { label: 'Total de licitações', valor: String(total) },
-        { label: 'Valor estimado total', valor: formatarMoeda(valorTotal) },
-        { label: 'Ganhas', valor: String(ganhas), tone: 'success' as const },
-      ];
-    }
-    if (aba === 'propostas') {
-      const total = propostasFiltradas.length;
-      const valorTotal = propostasFiltradas.reduce((s, p) => s + calcularTotalProposta(p.itens), 0);
-      const aceitas = propostasFiltradas.filter((p) => p.status === 'aceita').length;
-      return [
-        { label: 'Total de propostas', valor: String(total) },
-        { label: 'Valor total ofertado', valor: formatarMoeda(valorTotal) },
-        { label: 'Aceitas', valor: String(aceitas), tone: 'success' as const },
+        { label: 'Valor total (estimado/itens)', valor: formatarMoeda(valorTotal) },
+        { label: 'Ganhas', valor: String(ganhas), tone: 'success' },
       ];
     }
     const total = disputasFiltradas.length;
@@ -143,11 +132,11 @@ export function RelatoriosPage() {
     const taxaSucesso = ganhas + perdidas > 0 ? Math.round((ganhas / (ganhas + perdidas)) * 100) : 0;
     return [
       { label: 'Total de disputas', valor: String(total) },
-      { label: 'Ganhas', valor: String(ganhas), tone: 'success' as const },
-      { label: 'Perdidas', valor: String(perdidas), tone: 'danger' as const },
+      { label: 'Ganhas', valor: String(ganhas), tone: 'success' },
+      { label: 'Perdidas', valor: String(perdidas), tone: 'danger' },
       { label: 'Taxa de sucesso', valor: `${taxaSucesso}%` },
     ];
-  }, [aba, licitacoesFiltradas, propostasFiltradas, disputasFiltradas]);
+  }, [aba, licitacoesFiltradas, disputasFiltradas]);
 
   // ---- Colunas e linhas para exportação/tabela, por aba ----
   const { colunas, linhas } = useMemo((): {
@@ -157,42 +146,22 @@ export function RelatoriosPage() {
     if (aba === 'licitacoes') {
       return {
         colunas: [
-          { chave: 'numeroEdital', titulo: 'Edital' },
+          { chave: 'numeroPregao', titulo: 'Pregão' },
           { chave: 'orgao', titulo: 'Órgão' },
           { chave: 'modalidade', titulo: 'Modalidade' },
           { chave: 'cliente', titulo: 'Cliente' },
-          { chave: 'valorEstimado', titulo: 'Valor Estimado' },
-          { chave: 'dataAberturaSessao', titulo: 'Sessão' },
+          { chave: 'valorTotal', titulo: 'Valor Total' },
+          { chave: 'dataLicitacao', titulo: 'Sessão' },
           { chave: 'status', titulo: 'Status' },
         ],
         linhas: licitacoesFiltradas.map((l) => ({
-          numeroEdital: l.numeroEdital,
+          numeroPregao: l.numeroPregao,
           orgao: l.orgao,
           modalidade: MODALIDADE_LICITACAO_LABEL[l.modalidade],
           cliente: nomeCliente(l.clienteId),
-          valorEstimado: formatarMoeda(l.valorEstimado),
-          dataAberturaSessao: formatarDataHora(l.dataAberturaSessao),
+          valorTotal: l.valorTotalLicitacao != null ? formatarMoeda(l.valorTotalLicitacao) : 'Sigiloso',
+          dataLicitacao: formatarDataHora(l.dataEfetivaLicitacao || l.dataLicitacao),
           status: STATUS_LICITACAO_LABEL[l.status],
-        })),
-      };
-    }
-
-    if (aba === 'propostas') {
-      const licitacaoPorId = new Map(licitacoes.map((l) => [l.id, l]));
-      return {
-        colunas: [
-          { chave: 'edital', titulo: 'Edital' },
-          { chave: 'valorTotal', titulo: 'Valor Total' },
-          { chave: 'validade', titulo: 'Validade (dias)' },
-          { chave: 'dataEnvio', titulo: 'Enviada em' },
-          { chave: 'status', titulo: 'Status' },
-        ],
-        linhas: propostasFiltradas.map((p) => ({
-          edital: licitacaoPorId.get(p.licitacaoId)?.numeroEdital ?? '—',
-          valorTotal: formatarMoeda(calcularTotalProposta(p.itens)),
-          validade: p.validadeDias,
-          dataEnvio: p.dataEnvio ? formatarDataHora(p.dataEnvio) : '—',
-          status: STATUS_PROPOSTA_LABEL[p.status],
         })),
       };
     }
@@ -200,7 +169,7 @@ export function RelatoriosPage() {
     const licitacaoPorId = new Map(licitacoes.map((l) => [l.id, l]));
     return {
       colunas: [
-        { chave: 'edital', titulo: 'Edital' },
+        { chave: 'pregao', titulo: 'Pregão' },
         { chave: 'sessao', titulo: 'Sessão Realizada' },
         { chave: 'nossaOferta', titulo: 'Nossa Oferta' },
         { chave: 'valorVencedor', titulo: 'Valor Vencedor' },
@@ -208,7 +177,7 @@ export function RelatoriosPage() {
         { chave: 'resultado', titulo: 'Resultado' },
       ],
       linhas: disputasFiltradas.map((d) => ({
-        edital: licitacaoPorId.get(d.licitacaoId)?.numeroEdital ?? '—',
+        pregao: licitacaoPorId.get(d.licitacaoId)?.numeroPregao ?? '—',
         sessao: d.dataSessaoRealizada ? formatarDataHora(d.dataSessaoRealizada) : '—',
         nossaOferta: d.valorNossaOfertaFinal ? formatarMoeda(d.valorNossaOfertaFinal) : '—',
         valorVencedor: d.valorVencedor ? formatarMoeda(d.valorVencedor) : '—',
@@ -216,11 +185,10 @@ export function RelatoriosPage() {
         resultado: RESULTADO_DISPUTA_LABEL[d.resultado],
       })),
     };
-  }, [aba, licitacoesFiltradas, propostasFiltradas, disputasFiltradas, licitacoes]);
+  }, [aba, licitacoesFiltradas, disputasFiltradas, licitacoes]);
 
   const opcoesStatus = useMemo(() => {
     if (aba === 'licitacoes') return Object.entries(STATUS_LICITACAO_LABEL);
-    if (aba === 'propostas') return Object.entries(STATUS_PROPOSTA_LABEL);
     return Object.entries(RESULTADO_DISPUTA_LABEL);
   }, [aba]);
 
@@ -239,7 +207,7 @@ export function RelatoriosPage() {
       <header className="mb-6">
         <h1 className="font-display text-2xl text-ink">Relatórios</h1>
         <p className="font-body text-sm text-ink-soft">
-          Acompanhamento consolidado de licitações, propostas e disputas.
+          Acompanhamento consolidado de licitações e disputas.
         </p>
       </header>
 
@@ -319,7 +287,7 @@ export function RelatoriosPage() {
       {/* Indicadores-resumo */}
       <div className="mb-6 grid grid-cols-4 gap-4">
         {indicadores.map((ind) => (
-          <CardResumo key={ind.label} label={ind.label} valor={ind.valor} tone={(ind as any).tone} />
+          <CardResumo key={ind.label} label={ind.label} valor={ind.valor} tone={ind.tone} />
         ))}
       </div>
 
