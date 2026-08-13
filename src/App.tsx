@@ -57,7 +57,7 @@ export default function App() {
           <Route
             path="/admin/licitacoes"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']} requiredModule="licitacoes">
                 <LicitacoesPage />
               </ProtectedRoute>
             }
@@ -66,7 +66,7 @@ export default function App() {
           <Route
             path="/admin/disputas"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']} requiredModule="disputas">
                 <DisputasPage />
               </ProtectedRoute>
             }
@@ -75,7 +75,7 @@ export default function App() {
           <Route
             path="/admin/relatorios"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'funcionario']}>
+              <ProtectedRoute allowedRoles={['admin', 'funcionario']} requiredModule="relatorios">
                 <RelatoriosPage />
               </ProtectedRoute>
             }

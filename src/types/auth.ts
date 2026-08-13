@@ -19,6 +19,11 @@ export interface AuthUser {
   // Cliente buscar "minhas licitações" via licitacaoService.listarPorCliente().
   // Só existe (e só faz sentido) para role === 'cliente'.
   clienteId?: string
+  // Vincula um login de perfil "funcionario" ao registro correspondente em
+  // funcionarioService/MOCK_FUNCIONARIOS — necessário para carregar as
+  // permissões granulares do funcionário (ver src/hooks/usePermissoes.ts).
+  // Só existe (e só faz sentido) para role === 'funcionario'.
+  funcionarioId?: string
 }
 
 /** Formato mockado hoje; ao integrar com Supabase, o campo `password`

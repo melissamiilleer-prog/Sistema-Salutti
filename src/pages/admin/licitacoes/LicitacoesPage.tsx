@@ -5,6 +5,8 @@
 // status, paginação, e modal de formulário para criar/editar.
 
 import { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '../../../context/AuthContext';
+import { usePermissoes } from '../../../hooks/usePermissoes';
 import { Pagination } from '../../../components/Pagination';
 import { StatusPill, StatusTone } from '../../../components/StatusPill';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
@@ -22,11 +24,6 @@ import {
 import { mockClientesResumo } from '../../../data/mockClientesResumo';
 import { formatarDataHora, formatarMoeda, classificarUrgenciaPrazo } from '../../../utils/prazoUtils';
 
-// Se `useAuth` já existir em `src/context/AuthContext.tsx`, troque esta
-// linha por: `import { useAuth } from '../../../context/AuthContext';`
-// e substitua `usuarioAtual` abaixo por `useAuth().user?.nome`.
-const usuarioAtual = 'Usuário atual';
-
 const STATUS_TONE: Record<StatusLicitacao, StatusTone> = {
   pendente: 'neutral',
   em_analise: 'info',
@@ -38,6 +35,11 @@ const STATUS_TONE: Record<StatusLicitacao, StatusTone> = {
 const PAGE_SIZE = 8;
 
 export function LicitacoesPage() {
+  const { user } = useAuth();
+  const { carregando: carregandoPermissoes, restricaoDados, podeAcessarModulo } = usePermissoes();
+  const usuarioAtual = user?.name ?? 'Usuário atual';
+  const podeEditar = podeAcessarModulo('licitacoes', 'editar');
+
   const [itens, setItens] = useState<Licitacao[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -51,17 +53,19 @@ export function LicitacoesPage() {
   const [excluindo, setExcluindo] = useState(false);
 
   const carregar = useCallback(async () => {
+    if (carregandoPermissoes) return;
     setCarregando(true);
     const resultado = await licitacaoService.listar({
       busca,
       status: statusFiltro,
       page,
       pageSize: PAGE_SIZE,
+      ...restricaoDados,
     });
     setItens(resultado.itens);
     setTotal(resultado.total);
     setCarregando(false);
-  }, [busca, statusFiltro, page]);
+  }, [busca, statusFiltro, page, carregandoPermissoes, restricaoDados]);
 
   useEffect(() => {
     carregar();
@@ -111,7 +115,7 @@ export function LicitacoesPage() {
             Cadastro e acompanhamento de todas as licitações em andamento.
           </p>
         </div>
-        <Button onClick={abrirNova}>+ Nova licitação</Button>
+        {podeEditar && <Button onClick={abrirNova}>+ Nova licitação</Button>}
       </header>
 
       <div className="mb-4 flex gap-3 font-body text-sm">
@@ -153,13 +157,13 @@ export function LicitacoesPage() {
               <th className="px-4 py-3">Valor</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Decisão do cliente</th>
-              <th className="px-4 py-3 text-right">Ações</th>
+              {podeEditar && <th className="px-4 py-3 text-right">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-charcoal-3/10">
             {carregando && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={podeEditar ? 9 : 8} className="px-4 py-8 text-center text-ink-soft">
                   Carregando licitações...
                 </td>
               </tr>
@@ -167,7 +171,7 @@ export function LicitacoesPage() {
 
             {!carregando && itens.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={podeEditar ? 9 : 8} className="px-4 py-8 text-center text-ink-soft">
                   Nenhuma licitação encontrada.
                 </td>
               </tr>

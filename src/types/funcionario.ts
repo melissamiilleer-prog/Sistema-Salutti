@@ -53,12 +53,72 @@ export interface FuncionarioAcesso {
   forcarTrocaSenha: boolean
 }
 
-/** Aba 4 — Permissões (estrutura preparada; hoje só clientes/licitações
- *  vinculados por id, sem granularidade de ações — futuramente vira uma
- *  lista de permissões por módulo/ação). */
+/** Se o funcionário enxerga a carteira inteira da Salutti ('total') ou
+ *  apenas os clientes/licitações explicitamente vinculados a ele
+ *  ('restrito'). O perfil Administrador sempre tem acesso total, independente
+ *  deste campo (ver src/hooks/usePermissoes.ts). */
+export type ModoAcesso = 'total' | 'restrito'
+
+export const MODO_ACESSO_LABEL: Record<ModoAcesso, string> = {
+  total: 'Acesso total à carteira',
+  restrito: 'Acesso restrito (somente vínculos abaixo)',
+}
+
+/** Ação que pode ser concedida por módulo. Hoje só leitura/edição — exclusão
+ *  fica implícita em 'editar' para não multiplicar checkboxes sem necessidade
+ *  real ainda. */
+export type AcaoPermissao = 'visualizar' | 'editar'
+
+export type ModuloPermissao =
+  | 'clientes'
+  | 'funcionarios'
+  | 'licitacoes'
+  | 'disputas'
+  | 'relatorios'
+  | 'configuracoes'
+
+export const MODULO_PERMISSAO_LABEL: Record<ModuloPermissao, string> = {
+  clientes: 'Clientes',
+  funcionarios: 'Funcionários',
+  licitacoes: 'Licitações',
+  disputas: 'Disputas',
+  relatorios: 'Relatórios',
+  configuracoes: 'Configurações',
+}
+
+export type PermissoesPorModulo = Record<ModuloPermissao, AcaoPermissao[]>
+
+/** Aba 4 — Permissões. `modoAcesso` controla se `clientesVinculados` /
+ *  `licitacoesAtribuidas` chegam a ser aplicados (em 'total' eles ficam
+ *  guardados mas não restringem nada). `modulos` é a permissão granular por
+ *  módulo/ação prevista na especificação ("acesso total ou restrito" +
+ *  ações específicas). */
 export interface FuncionarioPermissoes {
+  modoAcesso: ModoAcesso
   clientesVinculados: string[]
   licitacoesAtribuidas: string[]
+  modulos: PermissoesPorModulo
+}
+
+/** Permissões padrão de um Funcionário recém-criado: acesso total à
+ *  carteira (preserva o comportamento atual do sistema) e os módulos
+ *  operacionais liberados (Licitações, Disputas, Relatórios em leitura),
+ *  sem acesso a Clientes/Funcionários/Configurações — que continuam
+ *  exclusivos do Administrador via `allowedRoles` nas rotas. */
+export function criarPermissoesPadrao(): FuncionarioPermissoes {
+  return {
+    modoAcesso: 'total',
+    clientesVinculados: [],
+    licitacoesAtribuidas: [],
+    modulos: {
+      clientes: [],
+      funcionarios: [],
+      licitacoes: ['visualizar', 'editar'],
+      disputas: ['visualizar', 'editar'],
+      relatorios: ['visualizar'],
+      configuracoes: [],
+    },
+  }
 }
 
 /** Aba 5 — Histórico. Cada entrada representa uma alteração administrativa
@@ -117,10 +177,7 @@ export function criarFuncionarioFormVazio(): FuncionarioFormData {
       status: 'ativo',
       forcarTrocaSenha: true,
     },
-    permissoes: {
-      clientesVinculados: [],
-      licitacoesAtribuidas: [],
-    },
+    permissoes: criarPermissoesPadrao(),
     senhaTemporaria: '',
     confirmarSenha: '',
     observacoesAdministrativas: '',
@@ -133,8 +190,17 @@ export function funcionarioParaFormData(funcionario: Funcionario): FuncionarioFo
     cargo: { ...funcionario.cargo },
     acesso: { ...funcionario.acesso },
     permissoes: {
+      modoAcesso: funcionario.permissoes.modoAcesso,
       clientesVinculados: [...funcionario.permissoes.clientesVinculados],
       licitacoesAtribuidas: [...funcionario.permissoes.licitacoesAtribuidas],
+      modulos: {
+        clientes: [...funcionario.permissoes.modulos.clientes],
+        funcionarios: [...funcionario.permissoes.modulos.funcionarios],
+        licitacoes: [...funcionario.permissoes.modulos.licitacoes],
+        disputas: [...funcionario.permissoes.modulos.disputas],
+        relatorios: [...funcionario.permissoes.modulos.relatorios],
+        configuracoes: [...funcionario.permissoes.modulos.configuracoes],
+      },
     },
     senhaTemporaria: '',
     confirmarSenha: '',

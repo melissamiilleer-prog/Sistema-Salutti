@@ -8,6 +8,7 @@
 // básicos, indicadores-resumo e botões de exportação em Excel/PDF.
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { usePermissoes } from '../../../hooks/usePermissoes';
 import { licitacaoService } from '../../../services/licitacaoService';
 import { disputaService } from '../../../services/disputaService';
 import { Licitacao, STATUS_LICITACAO_LABEL, MODALIDADE_LICITACAO_LABEL } from '../../../types/licitacao';
@@ -65,6 +66,8 @@ function CardResumo({ label, valor, tone = 'default' }: CardResumoProps) {
 }
 
 export function RelatoriosPage() {
+  const { carregando: carregandoPermissoes, restricaoDados } = usePermissoes();
+
   const [aba, setAba] = useState<AbaRelatorio>('licitacoes');
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
   const [disputas, setDisputas] = useState<Disputa[]>([]);
@@ -75,15 +78,19 @@ export function RelatoriosPage() {
   const [dataAte, setDataAte] = useState('');
 
   const carregar = useCallback(async () => {
+    if (carregandoPermissoes) return;
     setCarregando(true);
     const [resLicitacoes, resDisputas] = await Promise.all([
-      licitacaoService.listar({ pageSize: 1000 }),
+      licitacaoService.listar({ pageSize: 1000, ...restricaoDados }),
       disputaService.listarTodas(),
     ]);
+    // Mesma lógica de DisputasPage: restringe as disputas às licitações que
+    // sobreviveram ao filtro de permissão.
+    const idsLicitacoesPermitidas = new Set(resLicitacoes.itens.map((l) => l.id));
     setLicitacoes(resLicitacoes.itens);
-    setDisputas(resDisputas);
+    setDisputas(resDisputas.filter((d) => idsLicitacoesPermitidas.has(d.licitacaoId)));
     setCarregando(false);
-  }, []);
+  }, [carregandoPermissoes, restricaoDados]);
 
   useEffect(() => {
     carregar();

@@ -9,16 +9,16 @@
 // o Administrador usa (Licitações, Disputas, Relatórios — agora também
 // liberados para o perfil Funcionário no App.tsx).
 //
-// NOTA DE ESCOPO: a spec também prevê que o admin possa restringir cada
-// funcionário a clientes/permissões específicas ("acesso total ou
-// restrito"), mas esse sistema de permissões granulares ainda não existe
-// no cadastro de funcionários — por ora, todo funcionário vê a carteira
-// inteira, igual ao administrador.
+// Desde a implementação das permissões granulares (usePermissoes), um
+// funcionário com modoAcesso 'restrito' só vê aqui as licitações dos
+// clientes vinculados a ele (+ atribuições pontuais) — `restricaoDados`
+// abaixo é repassado direto para licitacaoService.listarAtivas().
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DashboardShell, StatCard } from '@/components/DashboardShell'
 import { useAuth } from '@/context/AuthContext'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { StatusPill, StatusTone } from '@/components/StatusPill'
 import { licitacaoService } from '@/services/licitacaoService'
 import {
@@ -44,13 +44,15 @@ function nomeCliente(clienteId: string): string {
 
 export function FuncionarioDashboard() {
   const { user } = useAuth()
+  const { carregando: carregandoPermissoes, restricaoDados, podeAcessarModulo } = usePermissoes()
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([])
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
+    if (carregandoPermissoes) return
     let ativo = true
     setCarregando(true)
-    licitacaoService.listarAtivas().then((itens) => {
+    licitacaoService.listarAtivas(restricaoDados ?? {}).then((itens) => {
       if (ativo) {
         setLicitacoes(itens)
         setCarregando(false)
@@ -59,7 +61,7 @@ export function FuncionarioDashboard() {
     return () => {
       ativo = false
     }
-  }, [])
+  }, [carregandoPermissoes, restricaoDados])
 
   const comPrazoUrgente = useMemo(
     () =>
@@ -94,27 +96,33 @@ export function FuncionarioDashboard() {
         <h2 className="font-display text-lg font-semibold text-forest-deep">Área do funcionário</h2>
         <p className="mt-2 font-body text-sm text-ink-soft">
           Cadastro de Clientes e de Funcionários são exclusivos do perfil <strong>Administrador</strong>.
-          Licitações, Disputas e Relatórios você já pode acessar normalmente.
+          Os módulos abaixo dependem das permissões configuradas no seu cadastro.
         </p>
         <div className="mt-4 flex flex-col gap-2">
-          <Link
-            to="/admin/licitacoes"
-            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
-          >
-            Ir para Licitações →
-          </Link>
-          <Link
-            to="/admin/disputas"
-            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
-          >
-            Ir para Disputas →
-          </Link>
-          <Link
-            to="/admin/relatorios"
-            className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
-          >
-            Ir para Relatórios →
-          </Link>
+          {podeAcessarModulo('licitacoes') && (
+            <Link
+              to="/admin/licitacoes"
+              className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+            >
+              Ir para Licitações →
+            </Link>
+          )}
+          {podeAcessarModulo('disputas') && (
+            <Link
+              to="/admin/disputas"
+              className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+            >
+              Ir para Disputas →
+            </Link>
+          )}
+          {podeAcessarModulo('relatorios') && (
+            <Link
+              to="/admin/relatorios"
+              className="inline-flex w-fit items-center gap-1.5 font-body text-sm font-semibold text-forest hover:underline"
+            >
+              Ir para Relatórios →
+            </Link>
+          )}
         </div>
       </div>
 

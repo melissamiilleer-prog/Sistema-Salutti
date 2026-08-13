@@ -5,6 +5,8 @@
 // ata no SIGA Pregão, quando informado.
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useAuth } from '../../../context/AuthContext';
+import { usePermissoes } from '../../../hooks/usePermissoes';
 import { StatusPill, StatusTone } from '../../../components/StatusPill';
 import { DisputaFormModal } from './DisputaFormModal';
 import { disputaService } from '../../../services/disputaService';
@@ -13,9 +15,6 @@ import { Disputa, DisputaFormData, ResultadoDisputa, RESULTADO_DISPUTA_LABEL } f
 import { Licitacao } from '../../../types/licitacao';
 import { formatarMoeda, formatarDataHora } from '../../../utils/prazoUtils';
 
-// Troque por `useAuth()` real — ver COMO_INTEGRAR.md.
-const usuarioAtual = 'Usuário atual';
-
 const RESULTADO_TONE: Record<ResultadoDisputa, StatusTone> = {
   em_andamento: 'neutral',
   ganho: 'success',
@@ -23,6 +22,11 @@ const RESULTADO_TONE: Record<ResultadoDisputa, StatusTone> = {
 };
 
 export function DisputasPage() {
+  const { user } = useAuth();
+  const { carregando: carregandoPermissoes, restricaoDados, podeAcessarModulo } = usePermissoes();
+  const usuarioAtual = user?.name ?? 'Usuário atual';
+  const podeEditar = podeAcessarModulo('disputas', 'editar');
+
   const [disputas, setDisputas] = useState<Disputa[]>([]);
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -33,15 +37,20 @@ export function DisputasPage() {
   const [licitacaoSelecionada, setLicitacaoSelecionada] = useState<Licitacao | null>(null);
 
   const carregar = useCallback(async () => {
+    if (carregandoPermissoes) return;
     setCarregando(true);
     const [todasDisputas, resultadoLicitacoes] = await Promise.all([
       disputaService.listarTodas(),
-      licitacaoService.listar({ pageSize: 1000 }),
+      licitacaoService.listar({ pageSize: 1000, ...restricaoDados }),
     ]);
-    setDisputas(todasDisputas);
+    // Licitações já vêm filtradas pela permissão — restringe as disputas às
+    // que pertencem a uma dessas licitações (evita expor disputa de um
+    // cliente fora da carteira do funcionário).
+    const idsLicitacoesPermitidas = new Set(resultadoLicitacoes.itens.map((l) => l.id));
+    setDisputas(todasDisputas.filter((d) => idsLicitacoesPermitidas.has(d.licitacaoId)));
     setLicitacoes(resultadoLicitacoes.itens);
     setCarregando(false);
-  }, []);
+  }, [carregandoPermissoes, restricaoDados]);
 
   useEffect(() => {
     carregar();
@@ -96,7 +105,7 @@ export function DisputasPage() {
             Resultado das sessões de disputa realizadas no SIGA Pregão.
           </p>
         </div>
-        {licitacoesSemDisputa.length > 0 && (
+        {podeEditar && licitacoesSemDisputa.length > 0 && (
           <select
             onChange={(e) => {
               const licitacao = licitacoesSemDisputa.find((l) => l.id === e.target.value);
@@ -197,13 +206,15 @@ export function DisputasPage() {
                           Ver ata ↗
                         </a>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicao(disputa)}
-                        className="text-forest-deep hover:underline"
-                      >
-                        Editar
-                      </button>
+                      {podeEditar && (
+                        <button
+                          type="button"
+                          onClick={() => abrirEdicao(disputa)}
+                          className="text-forest-deep hover:underline"
+                        >
+                          Editar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

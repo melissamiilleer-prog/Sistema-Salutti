@@ -155,7 +155,11 @@ export function FuncionarioFormModal({
           />
         )}
         {activeTab === 'permissoes' && (
-          <PermissoesTab permissoes={formData.permissoes} onChange={updatePermissoes} />
+          <PermissoesTab
+            permissoes={formData.permissoes}
+            perfil={formData.acesso.perfil}
+            onChange={updatePermissoes}
+          />
         )}
         {activeTab === 'historico' && (
           <HistoricoTab

@@ -92,8 +92,17 @@ export const funcionarioService = {
       cargo: { ...formData.cargo },
       acesso: { ...formData.acesso },
       permissoes: {
+        modoAcesso: formData.permissoes.modoAcesso,
         clientesVinculados: [...formData.permissoes.clientesVinculados],
         licitacoesAtribuidas: [...formData.permissoes.licitacoesAtribuidas],
+        modulos: {
+          clientes: [...formData.permissoes.modulos.clientes],
+          funcionarios: [...formData.permissoes.modulos.funcionarios],
+          licitacoes: [...formData.permissoes.modulos.licitacoes],
+          disputas: [...formData.permissoes.modulos.disputas],
+          relatorios: [...formData.permissoes.modulos.relatorios],
+          configuracoes: [...formData.permissoes.modulos.configuracoes],
+        },
       },
       observacoesAdministrativas: formData.observacoesAdministrativas,
       historico: [
@@ -139,8 +148,17 @@ export const funcionarioService = {
       cargo: { ...formData.cargo },
       acesso: { ...formData.acesso },
       permissoes: {
+        modoAcesso: formData.permissoes.modoAcesso,
         clientesVinculados: [...formData.permissoes.clientesVinculados],
         licitacoesAtribuidas: [...formData.permissoes.licitacoesAtribuidas],
+        modulos: {
+          clientes: [...formData.permissoes.modulos.clientes],
+          funcionarios: [...formData.permissoes.modulos.funcionarios],
+          licitacoes: [...formData.permissoes.modulos.licitacoes],
+          disputas: [...formData.permissoes.modulos.disputas],
+          relatorios: [...formData.permissoes.modulos.relatorios],
+          configuracoes: [...formData.permissoes.modulos.configuracoes],
+        },
       },
       observacoesAdministrativas: formData.observacoesAdministrativas,
       historico: [...anterior.historico, novaEntradaHistorico],

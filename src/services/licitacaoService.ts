@@ -45,6 +45,23 @@ export interface FiltroLicitacoes {
   status?: string;
   page?: number;
   pageSize?: number;
+  // Permissões granulares (ver src/hooks/usePermissoes.ts): quando informados,
+  // restringe às licitações desses clientes OU explicitamente atribuídas.
+  // Deixar undefined = sem restrição (comportamento atual, usado por admins
+  // e por funcionários com modoAcesso 'total').
+  clienteIds?: string[];
+  licitacaoIds?: string[];
+}
+
+function aplicarRestricaoPermissao(
+  itens: Licitacao[],
+  clienteIds?: string[],
+  licitacaoIds?: string[]
+): Licitacao[] {
+  if (!clienteIds && !licitacaoIds) return itens;
+  return itens.filter(
+    (l) => (clienteIds?.includes(l.clienteId) ?? false) || (licitacaoIds?.includes(l.id) ?? false)
+  );
 }
 
 export interface ResultadoPaginado<T> {
@@ -59,8 +76,9 @@ export const licitacaoService = {
   //   supabase.from('licitacoes').select('*, cliente:clientes(*)')
   //   com .ilike / .eq para busca e filtro, e .range() para paginação.
   async listar(filtro: FiltroLicitacoes = {}): Promise<ResultadoPaginado<Licitacao>> {
-    const { busca = '', status = '', page = 1, pageSize = 10 } = filtro;
+    const { busca = '', status = '', page = 1, pageSize = 10, clienteIds, licitacaoIds } = filtro;
     let itens = lerStorage();
+    itens = aplicarRestricaoPermissao(itens, clienteIds, licitacaoIds);
 
     if (busca.trim()) {
       const termo = busca.trim().toLowerCase();
@@ -101,8 +119,9 @@ export const licitacaoService = {
   // paginação, ordenadas pela sessão mais próxima primeiro.
   // SUPABASE: trocar por
   //   supabase.from('licitacoes').select('*').not('status', 'in', '(ganho,perdido)')
-  async listarAtivas(): Promise<Licitacao[]> {
-    const itens = lerStorage().filter((l) => l.status !== 'ganho' && l.status !== 'perdido');
+  async listarAtivas(restricao: { clienteIds?: string[]; licitacaoIds?: string[] } = {}): Promise<Licitacao[]> {
+    let itens = lerStorage().filter((l) => l.status !== 'ganho' && l.status !== 'perdido');
+    itens = aplicarRestricaoPermissao(itens, restricao.clienteIds, restricao.licitacaoIds);
     return simularLatencia(
       [...itens].sort((a, b) => new Date(a.dataLicitacao).getTime() - new Date(b.dataLicitacao).getTime())
     );

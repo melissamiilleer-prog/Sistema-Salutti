@@ -109,6 +109,7 @@ export function FuncionariosPage() {
       </div>
 
       <FuncionarioFormModal
+        key={funcionarioEmEdicao?.id ?? 'novo'}
         open={modalAberto}
         funcionarioEmEdicao={funcionarioEmEdicao}
         onClose={handleFecharModal}

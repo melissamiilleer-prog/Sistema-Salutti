@@ -32,8 +32,20 @@ export const MOCK_FUNCIONARIOS: Funcionario[] = [
       forcarTrocaSenha: false,
     },
     permissoes: {
+      // Administrador: 'modoAcesso'/'modulos' abaixo não têm efeito prático
+      // (o perfil admin sempre tem acesso total — ver usePermissoes), mas
+      // ficam preenchidos por consistência do cadastro.
+      modoAcesso: 'total',
       clientesVinculados: ['cli-0001', 'cli-0002', 'cli-0003', 'cli-0004', 'cli-0005', 'cli-0006'],
       licitacoesAtribuidas: [],
+      modulos: {
+        clientes: ['visualizar', 'editar'],
+        funcionarios: ['visualizar', 'editar'],
+        licitacoes: ['visualizar', 'editar'],
+        disputas: ['visualizar', 'editar'],
+        relatorios: ['visualizar', 'editar'],
+        configuracoes: ['visualizar', 'editar'],
+      },
     },
     observacoesAdministrativas: '',
     historico: [
@@ -70,8 +82,26 @@ export const MOCK_FUNCIONARIOS: Funcionario[] = [
       forcarTrocaSenha: false,
     },
     permissoes: {
-      clientesVinculados: ['cli-0001', 'cli-0004'],
-      licitacoesAtribuidas: ['lic-0012', 'lic-0018'],
+      // Exemplo de acesso RESTRITO: só enxerga licitações/disputas/relatórios
+      // dos clientes cli-001 (Horizonte Engenharia) e cli-004 (TechLimp),
+      // mais a licitação lic-002 (Vetor Segurança) atribuída pontualmente
+      // fora da carteira vinculada. Faça login como funcionario@salutti.com
+      // para ver o efeito (comparar com a carteira completa vista pelo
+      // Administrador). IDs conferidos contra mockLicitacoes.ts/
+      // mockClientesResumo.ts — que é a base real usada pelas telas de
+      // Licitações/Disputas/Relatórios (não confundir com os ids de
+      // mockClientes.ts, do módulo de Clientes, que usam outra numeração).
+      modoAcesso: 'restrito',
+      clientesVinculados: ['cli-001', 'cli-004'],
+      licitacoesAtribuidas: ['lic-002'],
+      modulos: {
+        clientes: [],
+        funcionarios: [],
+        licitacoes: ['visualizar', 'editar'],
+        disputas: ['visualizar', 'editar'],
+        relatorios: ['visualizar'],
+        configuracoes: [],
+      },
     },
     observacoesAdministrativas: '',
     historico: [
@@ -114,8 +144,17 @@ export const MOCK_FUNCIONARIOS: Funcionario[] = [
       forcarTrocaSenha: false,
     },
     permissoes: {
+      modoAcesso: 'total',
       clientesVinculados: [],
       licitacoesAtribuidas: [],
+      modulos: {
+        clientes: [],
+        funcionarios: [],
+        licitacoes: ['visualizar'],
+        disputas: [],
+        relatorios: ['visualizar'],
+        configuracoes: [],
+      },
     },
     observacoesAdministrativas: '',
     historico: [
@@ -152,8 +191,17 @@ export const MOCK_FUNCIONARIOS: Funcionario[] = [
       forcarTrocaSenha: true,
     },
     permissoes: {
-      clientesVinculados: ['cli-0002'],
-      licitacoesAtribuidas: ['lic-0009'],
+      modoAcesso: 'total',
+      clientesVinculados: ['cli-003'],
+      licitacoesAtribuidas: ['lic-003'],
+      modulos: {
+        clientes: [],
+        funcionarios: [],
+        licitacoes: ['visualizar'],
+        disputas: ['visualizar', 'editar'],
+        relatorios: ['visualizar'],
+        configuracoes: [],
+      },
     },
     observacoesAdministrativas: 'Aguardando conclusão de curso de especialização em licitações.',
     historico: [
@@ -196,8 +244,17 @@ export const MOCK_FUNCIONARIOS: Funcionario[] = [
       forcarTrocaSenha: false,
     },
     permissoes: {
+      modoAcesso: 'total',
       clientesVinculados: [],
       licitacoesAtribuidas: [],
+      modulos: {
+        clientes: [],
+        funcionarios: [],
+        licitacoes: ['visualizar'],
+        disputas: [],
+        relatorios: [],
+        configuracoes: [],
+      },
     },
     observacoesAdministrativas: 'Desligada em novembro de 2025; acesso mantido inativo por 90 dias.',
     historico: [

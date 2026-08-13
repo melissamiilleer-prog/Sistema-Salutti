@@ -106,6 +106,7 @@ export function ClientesPage() {
       </div>
 
       <ClienteFormModal
+        key={clienteEmEdicao?.id ?? 'novo'}
         open={modalAberto}
         clienteEmEdicao={clienteEmEdicao}
         onClose={handleFecharModal}

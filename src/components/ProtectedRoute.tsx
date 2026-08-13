@@ -1,12 +1,21 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import type { UserRole } from '@/types/auth'
+import type { ModuloPermissao } from '@/types/funcionario'
+import { ROLE_HOME_ROUTE } from '@/types/auth'
 
 interface ProtectedRouteProps {
   children: ReactNode
   /** Se informado, além de logado o usuário precisa ter um destes perfis. */
   allowedRoles?: UserRole[]
+  /** Se informado, além do perfil (role), o usuário precisa ter permissão
+   *  de visualização neste módulo — checado via usePermissoes(). Admins
+   *  sempre passam; a checagem só tem efeito prático para role 'funcionario'
+   *  (Clientes/Funcionários/Configurações já ficam de fora do funcionário
+   *  só por `allowedRoles`, sem precisar disto). */
+  requiredModule?: ModuloPermissao
 }
 
 /**
@@ -14,12 +23,15 @@ interface ProtectedRouteProps {
  * - Sem sessão -> redireciona para /login, guardando de onde veio.
  * - Logado mas com perfil não autorizado -> redireciona para o dashboard
  *   correto do próprio perfil (evita que um cliente acesse /admin, etc.).
+ * - Funcionário sem permissão de visualização no módulo (`requiredModule`)
+ *   -> redireciona para o próprio painel, com um aviso.
  */
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles, requiredModule }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { carregando: carregandoPermissoes, podeAcessarModulo } = usePermissoes()
   const location = useLocation()
 
-  if (isLoading) {
+  if (isLoading || (requiredModule && carregandoPermissoes)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper">
         <p className="font-mono text-sm uppercase tracking-widest text-ink-soft">
@@ -35,6 +47,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={`/${user.role}`} replace />
+  }
+
+  if (requiredModule && !podeAcessarModulo(requiredModule)) {
+    return <Navigate to={ROLE_HOME_ROUTE[user.role]} replace state={{ semPermissao: requiredModule }} />
   }
 
   return <>{children}</>

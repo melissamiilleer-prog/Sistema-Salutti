@@ -22,6 +22,9 @@ export const MOCK_USERS: MockCredential[] = [
     email: 'funcionario@salutti.com',
     password: '123456',
     role: 'funcionario',
+    // 'func-0002' em mockFuncionarios.ts — cadastrado com modoAcesso
+    // 'restrito', ótimo login para testar as permissões granulares.
+    funcionarioId: 'func-0002',
   },
   {
     id: 'usr-cli-1',
