@@ -3,19 +3,16 @@ interface LogoProps {
 }
 
 /**
- * Reproduz o lockup textual do logotipo do site institucional
- * (ícone dourado + "SALUTTI" em verde-floresta) sem depender do arquivo
- * de imagem, para este app poder evoluir de forma independente.
- * Caso o arquivo logo-wide.png seja copiado para este projeto (em
- * /public/brand/), basta trocar este componente por um <img>.
+ * Reproduz o lockup textual do logotipo do site institucional: o ícone
+ * oficial (fita verde em forma de "S" + martelo dourado atravessado,
+ * arquivo em /public/brand/icone-salutti.png, com fundo removido) ao lado
+ * do texto "SALUTTI" na cor e fonte exatas do logo.
  */
 export function Logo({ className = '' }: LogoProps) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-forest font-mono text-sm font-bold text-brass-pale">
-        S
-      </span>
-      <span className="font-display text-lg font-semibold tracking-tight text-forest-deep">
+      <img src={`${import.meta.env.BASE_URL}brand/icone-salutti.png`} alt="" className="h-8 w-auto" />
+      <span className="font-body text-lg font-extrabold uppercase tracking-tight text-brandGreen">
         SALUTTI
       </span>
     </div>
