@@ -11,6 +11,12 @@ export default {
           deep: '#073F29',
           mist: '#E7F0EA',
         },
+        // Verde exato extraído do arquivo do logo oficial (círculo do ícone
+        // "S" e texto "SALUTTI" usam essa MESMA cor no logo) — mantido
+        // separado do "forest" (usado no resto da UI) porque são fontes
+        // diferentes: este é para reproduzir o logo com fidelidade de cor,
+        // aquele é a paleta funcional do app.
+        brandGreen: '#057046',
         mint: '#7FD9AC',
         brass: {
           DEFAULT: '#A9822F',

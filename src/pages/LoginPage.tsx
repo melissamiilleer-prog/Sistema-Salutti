@@ -54,7 +54,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-charcoal px-4">
+    <div className="flex min-h-screen items-center justify-center bg-forest-deep px-4">
       <div className="w-full max-w-sm rounded-2xl bg-paper p-8 shadow-card">
         <div className="mb-6 flex justify-center">
           <Logo />
